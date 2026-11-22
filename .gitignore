@@ -1,0 +1,4 @@
+formatmap-out/
+__pycache__/
+*.pyc
+.env

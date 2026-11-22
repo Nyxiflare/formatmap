@@ -1,0 +1,469 @@
+{
+  "version": 1,
+  "about": "FormatMap ratings. Every number here is editable data: change a rating, add a format or tweak the scoring and the script picks it up. effort = production cost (1 = minutes on a phone, 10 = a small team for weeks). premium = how premium it feels to a viewer scrolling past (1 = obvious low effort, 10 = looks like a studio made it). hours = typical hours for one finished piece by a solo creator at that length. face = required | optional | none. These are starting judgements, not measurements: adjust them per creator with 'overrides' in the scan file.",
+  "scale": {
+    "effort": "1 = phone, one take, no edit; 3 = a light edit and captions; 5 = scripting, several shots, a real edit; 7 = animation or a shoot day; 10 = a team for weeks",
+    "premium": "1 = reads as copy-paste; 3 = ordinary feed content; 5 = clearly made with care; 7 = looks like a media brand; 10 = looks like a studio production",
+    "saturation": "0-10, how much of what this niche's audience is shown already uses the format. See references/niche-scan.md for the bands."
+  },
+  "scoring": {
+    "weights": {"premium": 0.45, "openness": 0.40, "ease": 0.15},
+    "open": {"min_premium": 6, "max_saturation": 4},
+    "crowded": {"min_saturation": 7},
+    "upgrade": {"max_effort": 4, "min_saturation": 6},
+    "saturation_bands": [
+      {"max_share": 0.0, "saturation": 0},
+      {"max_share": 0.03, "saturation": 1},
+      {"max_share": 0.06, "saturation": 2},
+      {"max_share": 0.10, "saturation": 3},
+      {"max_share": 0.15, "saturation": 4},
+      {"max_share": 0.20, "saturation": 5},
+      {"max_share": 0.27, "saturation": 6},
+      {"max_share": 0.35, "saturation": 7},
+      {"max_share": 0.45, "saturation": 8},
+      {"max_share": 0.60, "saturation": 9},
+      {"max_share": 1.0, "saturation": 10}
+    ],
+    "test_pieces_per_format": 2,
+    "test_days": 14,
+    "upgrade_hours_factor": 1.5,
+    "layout_hours_per_effort": 0.25,
+    "fill_min_premium": 4
+  },
+  "formats": [
+    {
+      "id": "talking-head",
+      "name": "Talking head",
+      "lengths": ["short", "long"],
+      "effort": 2, "premium": 3, "face": "required",
+      "hours": {"short": 1.5, "long": 6},
+      "definition": "The creator speaks straight to camera, usually with captions and jump cuts.",
+      "examples": ["\"3 mistakes I made in my first year of investing\" filmed on a phone", "A sit-down YouTube essay with one camera angle"],
+      "upgrades": {
+        "polish": ["Light the face with one soft key light and a darker background, and grade for skin tone", "Use a second angle or a punch-in crop every 6-10 seconds instead of constant jump cuts"],
+        "insight": ["Open with a specific claim the viewer can't get from the first 5 search results", "Back one point with something you did or measured yourself"],
+        "novelty": ["Film somewhere that is part of the story (the workshop, the trading desk, the kitchen)", "Cut to one proof shot (a screen, an object, a document) for every claim"],
+        "detail": ["Write captions by hand: correct terms, emphasis on 1-2 words per line, no auto-caption errors", "Match the cut points to sentence ends so it never feels chopped"]
+      }
+    },
+    {
+      "id": "green-screen",
+      "name": "Green screen commentary",
+      "lengths": ["short"],
+      "effort": 2, "premium": 3, "face": "required",
+      "hours": {"short": 1.5},
+      "definition": "The creator talks over a screenshot, article, post or image behind them.",
+      "examples": ["Reacting to a headline with the article behind you", "Explaining a chart someone else posted"],
+      "upgrades": {
+        "polish": ["Recreate the screenshot as a clean, cropped, readable card instead of a blurry capture", "Key out cleanly and add a soft shadow so you sit in the scene"],
+        "insight": ["Add the one fact the original post left out", "End with what the viewer should do differently, not only your opinion"],
+        "novelty": ["Animate the background: highlight, zoom or annotate the exact line you're talking about", "Swap backgrounds on each point so it moves like a slideshow"],
+        "detail": ["Cite the source on screen with date", "Blur names and handles of private people"]
+      }
+    },
+    {
+      "id": "text-on-broll",
+      "name": "Text on B-roll",
+      "lengths": ["short"],
+      "effort": 1, "premium": 2, "face": "none",
+      "hours": {"short": 0.5},
+      "definition": "A short line of text over generic or stock footage, often with trending audio. The classic low-effort, copy-paste format.",
+      "examples": ["\"Things nobody tells you about moving abroad\" over a slow walking clip", "A quote over a sunset clip"],
+      "upgrades": {
+        "polish": ["Shoot your own footage that literally shows what the text says, not mood footage", "Set the text in one consistent typeface, size and safe-area position"],
+        "insight": ["Replace the generic line with a number, a named example or a counter-intuitive claim", "Turn one line into a 3-beat mini argument across 3 shots"],
+        "novelty": ["Make the text interact with the footage (behind objects, tracking, revealed by movement)", "Use a recurring visual series hook the audience learns to recognise"],
+        "detail": ["Time each line to be readable twice at normal speed", "Pick audio that fits the claim, not just what's trending"]
+      }
+    },
+    {
+      "id": "carousel",
+      "name": "Carousel / slides",
+      "lengths": ["short"],
+      "effort": 2, "premium": 4, "face": "none",
+      "hours": {"short": 1.5},
+      "definition": "A swipeable set of images or slides (Instagram, LinkedIn, TikTok photo mode).",
+      "examples": ["\"7 budgeting rules\" as 8 slides", "A before/after case study across 5 slides"],
+      "upgrades": {
+        "polish": ["Build a real grid and type system so every slide feels designed, not templated", "Make slide 1 a strong visual, not a wall of text"],
+        "insight": ["Give each slide one idea with a concrete example", "Include one original diagram, table or framework the viewer will save"],
+        "novelty": ["Make the swipe itself part of the story (a reveal, a zoom, a continuous image across slides)", "Use real photos or screenshots instead of stock icons"],
+        "detail": ["Check every slide at phone size for readability", "Put the save-worthy summary on the last slide"]
+      }
+    },
+    {
+      "id": "pov",
+      "name": "POV",
+      "lengths": ["short"],
+      "effort": 2, "premium": 3, "face": "optional",
+      "hours": {"short": 1},
+      "definition": "A first-person scenario: \"POV: you just...\" acted or shown from the viewer's perspective.",
+      "examples": ["\"POV: your first day as a junior developer\"", "Hands-only POV of opening a new product"],
+      "upgrades": {
+        "polish": ["Shoot real first-person angles (head or chest mount) instead of a selfie", "Use sound design so the scene feels physical"],
+        "insight": ["Base the scenario on a real, specific situation the niche recognises", "Hide one useful tip inside the scenario"],
+        "novelty": ["Run a POV series with the same character and an ongoing story", "Flip the perspective (POV of the customer, the boss, the object)"],
+        "detail": ["Get the props and jargon exactly right for the niche", "Keep it under the length the joke can carry"]
+      }
+    },
+    {
+      "id": "skit",
+      "name": "Skit / sketch",
+      "lengths": ["short", "long"],
+      "effort": 5, "premium": 5, "face": "required",
+      "hours": {"short": 4, "long": 20},
+      "definition": "A scripted scene with characters, often the creator playing several roles.",
+      "examples": ["\"The client who wants it done yesterday\" with the creator playing both sides", "A recurring office-life sketch series"],
+      "upgrades": {
+        "polish": ["Lock framing and continuity between characters; use real costumes or props", "Mix dialogue properly so both voices sit at the same level"],
+        "insight": ["Write from a real pain point so the punchline teaches something", "Let the niche's insiders feel seen with one precise detail"],
+        "novelty": ["Build recurring characters", "Use an unexpected genre for a mundane niche topic"],
+        "detail": ["Cut on the beat of the joke, not after it", "Subtitle each character in a different colour"]
+      }
+    },
+    {
+      "id": "screen-recording",
+      "name": "Screen recording",
+      "lengths": ["short", "long"],
+      "effort": 3, "premium": 4, "face": "none",
+      "hours": {"short": 2, "long": 8},
+      "definition": "A capture of the screen while the creator shows how to do something, usually with voiceover.",
+      "examples": ["\"How to set up X in 60 seconds\"", "A full software walkthrough"],
+      "upgrades": {
+        "polish": ["Record at high resolution with a clean desktop and hidden notifications", "Add smooth zooms and cursor highlights to where the action is"],
+        "insight": ["Show the result first, then how", "Include the mistake most people make and how to avoid it"],
+        "novelty": ["Rebuild the key screens as clean UI mockups instead of raw captures", "Speed-ramp boring parts and keep the 'aha' moment in real time"],
+        "detail": ["Blur personal data in every frame", "Make on-screen text readable on a phone"]
+      }
+    },
+    {
+      "id": "tutorial",
+      "name": "Hands-on tutorial",
+      "lengths": ["short", "long"],
+      "effort": 4, "premium": 5, "face": "optional",
+      "hours": {"short": 3, "long": 12},
+      "definition": "Step-by-step how-to filmed in the real world: cooking, crafts, fixing, fitness, makeup.",
+      "examples": ["A 45-second recipe", "\"How to replace a bike chain\""],
+      "upgrades": {
+        "polish": ["Use two angles (overhead and close-up) and consistent lighting", "Record clean sound of the process (chops, clicks, sizzles)"],
+        "insight": ["Explain why each step matters, not only what to do", "Show the failure version next to the right version"],
+        "novelty": ["Add exact measurements and timing as clean on-screen graphics", "Show the finished result in a real use moment"],
+        "detail": ["Every step visible: no off-screen 'and then'", "A pinned or on-screen summary of steps"]
+      }
+    },
+    {
+      "id": "listicle",
+      "name": "Listicle",
+      "lengths": ["short", "long"],
+      "effort": 3, "premium": 3, "face": "optional",
+      "hours": {"short": 2, "long": 8},
+      "definition": "A numbered list: \"5 tools\", \"10 mistakes\", \"3 books\".",
+      "examples": ["\"5 apps I use every day\"", "\"Top 10 budget travel destinations\""],
+      "upgrades": {
+        "polish": ["Give each item its own visual (real shot, product, screenshot), never the same B-roll", "Use a consistent numbered graphic system"],
+        "insight": ["Rank them and justify the ranking", "Cut the list to items you have actually used or tested"],
+        "novelty": ["Add a twist item or a 'one I'd avoid'", "Show a comparison table at the end"],
+        "detail": ["Correct names, prices and dates on screen", "Order by surprise, not alphabet"]
+      }
+    },
+    {
+      "id": "storytime",
+      "name": "Storytime",
+      "lengths": ["short", "long"],
+      "effort": 2, "premium": 4, "face": "optional",
+      "hours": {"short": 1.5, "long": 6},
+      "definition": "The creator tells a personal or true story, on camera or as voiceover.",
+      "examples": ["\"How I lost my first client\"", "\"The weirdest thing that happened at work\""],
+      "upgrades": {
+        "polish": ["Cut to photos, documents or places from the story", "Use a score that follows the tension"],
+        "insight": ["End with the lesson in one sentence the viewer can reuse", "Add the number or fact that makes it real"],
+        "novelty": ["Reconstruct key moments with simple visuals (a map, a chat recreation, a timeline)", "Tell it out of order with a hook from the ending"],
+        "detail": ["Cut every sentence that doesn't move the story", "Protect identities of other people in the story"]
+      }
+    },
+    {
+      "id": "faceless-explainer",
+      "name": "Faceless explainer (stock + voiceover)",
+      "lengths": ["short", "long"],
+      "effort": 3, "premium": 4, "face": "none",
+      "hours": {"short": 2, "long": 10},
+      "definition": "Voiceover explaining a topic over stock footage, screenshots or AI images.",
+      "examples": ["\"Why rent is so expensive\" over city stock clips", "A history channel with AI-generated stills"],
+      "upgrades": {
+        "polish": ["Replace generic stock with visuals that literally show each sentence", "Record or clone a voice with real pacing and warmth, and mix it with room tone and music"],
+        "insight": ["Lead with a question the viewer actually has and answer it with one fresh source", "Add one original chart or comparison"],
+        "novelty": ["Give the channel a signature visual style (collage, glass UI, sketch) instead of stock", "Use a recurring visual metaphor across episodes"],
+        "detail": ["Fact-check every number and show the source", "Remove watermarks and mismatched stock (wrong country, wrong era)"]
+      }
+    },
+    {
+      "id": "vox-collage",
+      "name": "Vox-style collage explainer",
+      "lengths": ["short", "long"],
+      "effort": 8, "premium": 9, "face": "none",
+      "hours": {"short": 10, "long": 40},
+      "definition": "Mixed-media animated explainer: paper cut-outs, halftone photos, paint blocks, archival clippings, annotated with hand-drawn notes.",
+      "examples": ["\"Why do airlines overbook?\" with cut-out planes and newspaper clippings", "A 10-minute history essay in paper collage"],
+      "upgrades": {
+        "polish": ["Keep a tight palette (paper, black, one accent colour)", "Animate on a stop-motion frame rate for the hand-made feel"],
+        "insight": ["Anchor each segment on one primary source shown on screen", "Script around one question, answered at the end"],
+        "novelty": ["Pair it with a contrasting style for the answer (paper → glass)", "Use real artefacts from the niche as collage material"],
+        "detail": ["Credit archival material and check its licence", "Make every clipping legible for at least one beat"]
+      }
+    },
+    {
+      "id": "motion-graphics",
+      "name": "Motion graphics / kinetic type",
+      "lengths": ["short", "long"],
+      "effort": 6, "premium": 7, "face": "none",
+      "hours": {"short": 6, "long": 25},
+      "definition": "Animated shapes, icons and typography carry the explanation, usually with voiceover.",
+      "examples": ["An animated \"how compound interest works\"", "A kinetic-type quote video"],
+      "upgrades": {
+        "polish": ["Use easing and one motion language everywhere", "Design frames as stills first; animate second"],
+        "insight": ["One idea per scene", "Show the mechanism, not just the words"],
+        "novelty": ["Let one shape carry through every transition", "Mix in one real-world shot as contrast"],
+        "detail": ["Sync key motions to voice emphasis", "Check contrast and reading time"]
+      }
+    },
+    {
+      "id": "data-visual",
+      "name": "Data visual / animated chart",
+      "lengths": ["short", "long"],
+      "effort": 6, "premium": 8, "face": "none",
+      "hours": {"short": 5, "long": 20},
+      "definition": "A chart, map or number animates to tell a story: bar races, maps filling in, a line that drops.",
+      "examples": ["\"How house prices changed since 1990\" as an animated line", "A map of where a product is banned"],
+      "upgrades": {
+        "polish": ["One chart per point, clean labels, no gridline clutter", "Animate the change, not the whole chart"],
+        "insight": ["Show the one comparison that surprises people", "Explain what the number means for the viewer's life"],
+        "novelty": ["Use a real-world scale comparison", "Combine the chart with a short human story"],
+        "detail": ["Source and date on screen for every dataset", "Start axes honestly"]
+      }
+    },
+    {
+      "id": "product-ui-demo",
+      "name": "Clean UI / product demo",
+      "lengths": ["short", "long"],
+      "effort": 6, "premium": 8, "face": "none",
+      "hours": {"short": 6, "long": 20},
+      "definition": "Software or a solution shown as clean, Apple-like interface animation: glass panels, smooth cursor, close-ups of the UI in use.",
+      "examples": ["A 30-second app feature launch", "\"How this workflow saves 2 hours a week\" with a rebuilt UI"],
+      "upgrades": {
+        "polish": ["Rebuild the UI in vector instead of capturing pixels", "Use one camera move per screen, with soft depth and shadow"],
+        "insight": ["Show the before (messy) and after (clean) workflow", "Put the time or money saved on screen"],
+        "novelty": ["Make the UI react to the voiceover", "Open on the problem in a contrasting style (paper → glass)"],
+        "detail": ["Realistic data in the mock UI", "Consistent cursor speed and click sounds"]
+      }
+    },
+    {
+      "id": "interview-street",
+      "name": "Interview / street interview",
+      "lengths": ["short", "long"],
+      "effort": 5, "premium": 5, "face": "required",
+      "hours": {"short": 4, "long": 15},
+      "definition": "Asking other people questions: passers-by, experts, customers.",
+      "examples": ["\"What do you do for a living?\" on the street", "A 2-camera expert interview"],
+      "upgrades": {
+        "polish": ["Lav mics on both people; two cameras", "Consistent framing and grade across interviewees"],
+        "insight": ["Ask one question that reveals something real (salary, mistakes, numbers)", "Interview people the audience can't normally reach"],
+        "novelty": ["A recurring question across cities or jobs", "Add on-screen data that confirms or contradicts the answers"],
+        "detail": ["Release forms", "Caption names and roles correctly"]
+      }
+    },
+    {
+      "id": "podcast-clip",
+      "name": "Podcast clip",
+      "lengths": ["short"],
+      "effort": 3, "premium": 4, "face": "required",
+      "hours": {"short": 1},
+      "definition": "A cut from a longer conversation, usually two speakers on mics.",
+      "examples": ["A 40-second hot take from an episode", "A split-screen clip of two guests"],
+      "upgrades": {
+        "polish": ["Reframe each speaker vertically with active-speaker switching", "Clean the audio (de-noise, level both voices)"],
+        "insight": ["Clip a complete idea with a beginning and a payoff, not a fragment", "Add a one-line context card"],
+        "novelty": ["Overlay B-roll or graphics for what's being described", "Pair the clip with a stitch or follow-up answer"],
+        "detail": ["Hand-checked captions", "Name the guest on screen"]
+      }
+    },
+    {
+      "id": "mini-doc",
+      "name": "Mini-documentary",
+      "lengths": ["short", "long"],
+      "effort": 9, "premium": 9, "face": "optional",
+      "hours": {"short": 15, "long": 60},
+      "definition": "A researched, reported story with interviews, archive, field footage and narration.",
+      "examples": ["\"The town that runs on one factory\"", "A 12-minute investigation of a product scam"],
+      "upgrades": {
+        "polish": ["Plan a shot list; consistent grade and sound bed", "Use archive and field footage, not only stock"],
+        "insight": ["One original finding (a document, an interview, a number)", "A clear question and an honest answer"],
+        "novelty": ["Access nobody else has", "A structure with a turn in the middle"],
+        "detail": ["Fact-check and keep a source log", "Licences for every archive clip"]
+      }
+    },
+    {
+      "id": "cinematic-essay",
+      "name": "Cinematic video essay",
+      "lengths": ["short", "long"],
+      "effort": 7, "premium": 8, "face": "optional",
+      "hours": {"short": 8, "long": 30},
+      "definition": "A narrated essay over intentionally shot footage, with a strong visual style.",
+      "examples": ["\"Why I left the city\" shot on a mirrorless camera with a score", "An essay on a design trend with macro shots"],
+      "upgrades": {
+        "polish": ["Shoot every shot for the line it covers", "Score and grade as one mood"],
+        "insight": ["A thesis in the first 20 seconds", "A personal angle nobody else can claim"],
+        "novelty": ["A visual motif that returns at the end", "One unexpected location or technique"],
+        "detail": ["Every cut motivated", "Silence used on purpose"]
+      }
+    },
+    {
+      "id": "whiteboard",
+      "name": "Whiteboard / drawn explainer",
+      "lengths": ["short", "long"],
+      "effort": 5, "premium": 6, "face": "none",
+      "hours": {"short": 4, "long": 15},
+      "definition": "The explanation is drawn by hand on paper, a tablet or a whiteboard while the voice explains.",
+      "examples": ["\"How a credit score is calculated\" drawn on an iPad", "Sketch-note book summaries"],
+      "upgrades": {
+        "polish": ["Overhead rig with no shadows; clean, consistent pen weights", "Speed up the drawing to match speech"],
+        "insight": ["Build one diagram that the viewer can screenshot", "Draw the mental model, not the words"],
+        "novelty": ["Combine drawings with real photos", "A character who returns each episode"],
+        "detail": ["Legible handwriting at phone size", "Correct labels and units"]
+      }
+    },
+    {
+      "id": "case-study",
+      "name": "Case study breakdown",
+      "lengths": ["short", "long"],
+      "effort": 4, "premium": 6, "face": "optional",
+      "hours": {"short": 3, "long": 12},
+      "definition": "Taking a real example (a brand, an ad, a video, a company) apart and explaining why it worked or failed.",
+      "examples": ["\"Why this ad got 10M views\" with annotated frames", "\"How this shop doubled its sales\""],
+      "upgrades": {
+        "polish": ["Annotate frames with clean arrows, circles and callouts", "Show the original next to your annotation"],
+        "insight": ["Name the principle and show it in a second example", "Give the viewer a step to copy"],
+        "novelty": ["Recreate the example yourself and show results", "Compare winner vs. loser side by side"],
+        "detail": ["Only quote numbers you can show the source for", "Credit the original creator"]
+      }
+    },
+    {
+      "id": "before-after",
+      "name": "Before / after transformation",
+      "lengths": ["short"],
+      "effort": 3, "premium": 5, "face": "none",
+      "hours": {"short": 2},
+      "definition": "Shows a change: a room, a design, a body, a workflow, a website.",
+      "examples": ["A room makeover in 20 seconds", "A logo redesign reveal"],
+      "upgrades": {
+        "polish": ["Lock off the camera so before and after match exactly", "Use a satisfying reveal transition"],
+        "insight": ["Show the 2-3 decisions that made the difference", "Give the cost or time it took"],
+        "novelty": ["Let the viewer guess before the reveal", "Show a fail version too"],
+        "detail": ["Same lighting and angle both sides", "Honest results, no hidden edits"]
+      }
+    },
+    {
+      "id": "process-asmr",
+      "name": "Process / satisfying (hands only)",
+      "lengths": ["short"],
+      "effort": 4, "premium": 6, "face": "none",
+      "hours": {"short": 3},
+      "definition": "Hands making or fixing something, with crisp natural sound and little or no talking.",
+      "examples": ["Restoring an old tool", "Packing orders for a small shop"],
+      "upgrades": {
+        "polish": ["Macro lens and close mic", "Clean, consistent work surface and light"],
+        "insight": ["One on-screen line explaining the technique", "Show the reason behind a key step"],
+        "novelty": ["An unusual material or object", "A series with a counter (day 1, day 2...)"],
+        "detail": ["No music over the best sounds", "Loop the ending to the start"]
+      }
+    },
+    {
+      "id": "day-in-life",
+      "name": "Day in the life / vlog",
+      "lengths": ["short", "long"],
+      "effort": 4, "premium": 4, "face": "optional",
+      "hours": {"short": 3, "long": 12},
+      "definition": "Follows the creator (or a role) through a day.",
+      "examples": ["\"Day in the life of a nurse\"", "A week of running a one-person business"],
+      "upgrades": {
+        "polish": ["Plan 5-6 shots per scene instead of filming everything", "Use natural sound and a consistent grade"],
+        "insight": ["Add real numbers (hours, money, tasks)", "One honest low point"],
+        "novelty": ["A role the audience has never seen inside", "A time-lapse or map motif"],
+        "detail": ["Cut faster than you think", "Protect other people's privacy"]
+      }
+    },
+    {
+      "id": "challenge-experiment",
+      "name": "Challenge / experiment",
+      "lengths": ["short", "long"],
+      "effort": 6, "premium": 6, "face": "optional",
+      "hours": {"short": 5, "long": 20},
+      "definition": "\"I tried X for 30 days\", tests, comparisons, side-by-side trials.",
+      "examples": ["\"I tested 5 budget apps for a month\"", "\"Which knife stays sharp longest?\""],
+      "upgrades": {
+        "polish": ["Consistent test setup filmed the same way each time", "A clear results graphic"],
+        "insight": ["A fair method explained in one line", "A result that surprised you"],
+        "novelty": ["An experiment nobody in the niche has run", "Let the audience vote on the next test"],
+        "detail": ["Record the data as you go", "Show the losing option fairly"]
+      }
+    },
+    {
+      "id": "reaction-stitch",
+      "name": "Reaction / stitch / duet",
+      "lengths": ["short"],
+      "effort": 1, "premium": 1, "face": "optional",
+      "hours": {"short": 0.5},
+      "definition": "Responding to someone else's video, with their clip shown first or alongside.",
+      "examples": ["Stitching a bad tip and correcting it", "Duet reacting to a trend"],
+      "upgrades": {
+        "polish": ["Only keep the 2-3 seconds of the original you need", "Use your own visuals for the answer"],
+        "insight": ["Add a correction or a fact, not only a reaction", "Show proof"],
+        "novelty": ["A recurring 'fact-check' series", "Answer with an experiment"],
+        "detail": ["Credit the original", "Be fair to the original creator"]
+      }
+    },
+    {
+      "id": "meme-trend",
+      "name": "Meme / trend audio",
+      "lengths": ["short"],
+      "effort": 1, "premium": 1, "face": "optional",
+      "hours": {"short": 0.5},
+      "definition": "A trending sound or meme template applied to the niche.",
+      "examples": ["A trending audio with a niche-specific caption", "A meme template about a job"],
+      "upgrades": {
+        "polish": ["Shoot it properly even if the joke is simple", "Match cuts to the audio"],
+        "insight": ["Make the joke land only for insiders", "Hide a real tip in it"],
+        "novelty": ["Use the trend's structure, not its exact copy", "Be early, or skip it"],
+        "detail": ["Check the audio's licence for business accounts", "One joke per video"]
+      }
+    },
+    {
+      "id": "ai-slideshow",
+      "name": "AI image slideshow",
+      "lengths": ["short", "long"],
+      "effort": 1, "premium": 1, "face": "none",
+      "hours": {"short": 0.5, "long": 3},
+      "definition": "Generic AI-generated images with an AI voice, generated in bulk.",
+      "examples": ["\"Facts about ancient Rome\" with AI stills", "Motivational AI slideshow"],
+      "upgrades": {
+        "polish": ["One consistent art direction, curated frames only", "Real voice or carefully directed AI voice"],
+        "insight": ["Research one fact per video that is not on the first search page", "Cite sources"],
+        "novelty": ["Animate the stills with parallax and camera moves", "Mix AI images with real archival material"],
+        "detail": ["Fix hands, text and artefacts", "Label AI imagery where platforms require it"]
+      }
+    }
+  ],
+  "layouts": [
+    {"id": "full-frame", "name": "Full frame, single subject", "effort_add": 0, "premium_add": 0, "definition": "One subject fills the frame; the default vertical shot."},
+    {"id": "split-screen", "name": "Split screen (top/bottom)", "effort_add": 0, "premium_add": -1, "definition": "Two clips stacked, often with unrelated gameplay or satisfying footage below."},
+    {"id": "caption-heavy", "name": "Caption-heavy centre text", "effort_add": 0, "premium_add": -1, "definition": "Big auto-captions in the middle carry the video."},
+    {"id": "pip-facecam", "name": "Picture-in-picture face-cam", "effort_add": 1, "premium_add": 0, "definition": "Small face-cam over a screen, document or footage."},
+    {"id": "editorial-frame", "name": "Editorial frame / headline bar", "effort_add": 1, "premium_add": 1, "definition": "Letterboxed video inside a designed frame with a headline and source line, like a news brand."},
+    {"id": "top-down-desk", "name": "Top-down desk / overhead", "effort_add": 1, "premium_add": 1, "definition": "Overhead camera on a surface: hands, paper, objects."},
+    {"id": "kinetic-type", "name": "Full-screen kinetic type", "effort_add": 2, "premium_add": 1, "definition": "Animated words fill the screen in sync with the voice."},
+    {"id": "documentary", "name": "Documentary (lower thirds, archive)", "effort_add": 2, "premium_add": 2, "definition": "Interviews and archive with lower-third names and dates."},
+    {"id": "glass-ui", "name": "Glass UI / clean interface", "effort_add": 2, "premium_add": 2, "definition": "Frosted glass panels, soft shadows and smooth UI motion, in an Apple-like style."},
+    {"id": "paper-collage", "name": "Paper collage", "effort_add": 3, "premium_add": 2, "definition": "Halftone cut-outs, paper textures, paint blocks and hand-drawn notes."},
+    {"id": "paper-to-glass", "name": "Paper → Glass (two acts)", "effort_add": 3, "premium_add": 3, "definition": "The problem in rough paper collage, the solution in clean glass UI; the style change is the turn of the story."},
+    {"id": "3d-scene", "name": "3D scene / product render", "effort_add": 4, "premium_add": 2, "definition": "Rendered 3D objects or environments."}
+  ]
+}

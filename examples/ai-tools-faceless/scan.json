@@ -1,0 +1,244 @@
+{
+  "niche": "AI tools for small business owners (illustrative example)",
+  "date": "2026-11-22",
+  "sample": {
+    "size": 71,
+    "queries": [
+      "ai tools for small business",
+      "chatgpt for business owners",
+      "automate my small business"
+    ],
+    "platforms": [
+      "youtube-shorts",
+      "instagram-reels"
+    ],
+    "note": "Illustrative numbers only."
+  },
+  "creator": {
+    "faceless": true,
+    "length": "short",
+    "hours_per_week": 10,
+    "max_effort": 8,
+    "current_formats": [
+      "text-on-broll",
+      "faceless-explainer"
+    ],
+    "platforms": [
+      "youtube-shorts",
+      "instagram-reels"
+    ]
+  },
+  "overrides": {},
+  "entries": [
+    {
+      "format": "text-on-broll",
+      "layout": null,
+      "count": 18,
+      "basis": "user",
+      "evidence": "ILLUSTRATIVE: made-up tally for the README example, not a real scan"
+    },
+    {
+      "format": "ai-slideshow",
+      "layout": null,
+      "count": 12,
+      "basis": "user",
+      "evidence": "ILLUSTRATIVE: made-up tally for the README example, not a real scan"
+    },
+    {
+      "format": "talking-head",
+      "layout": null,
+      "count": 9,
+      "basis": "user",
+      "evidence": "ILLUSTRATIVE: made-up tally for the README example, not a real scan"
+    },
+    {
+      "format": "screen-recording",
+      "layout": null,
+      "count": 7,
+      "basis": "user",
+      "evidence": "ILLUSTRATIVE: made-up tally for the README example, not a real scan"
+    },
+    {
+      "format": "listicle",
+      "layout": null,
+      "count": 5,
+      "basis": "user",
+      "evidence": "ILLUSTRATIVE: made-up tally for the README example, not a real scan"
+    },
+    {
+      "format": "faceless-explainer",
+      "layout": null,
+      "count": 4,
+      "basis": "user",
+      "evidence": "ILLUSTRATIVE: made-up tally for the README example, not a real scan"
+    },
+    {
+      "format": "green-screen",
+      "layout": null,
+      "count": 4,
+      "basis": "user",
+      "evidence": "ILLUSTRATIVE: made-up tally for the README example, not a real scan"
+    },
+    {
+      "format": "carousel",
+      "layout": null,
+      "count": 3,
+      "basis": "user",
+      "evidence": "ILLUSTRATIVE: made-up tally for the README example, not a real scan"
+    },
+    {
+      "format": "reaction-stitch",
+      "layout": null,
+      "count": 2,
+      "basis": "user",
+      "evidence": "ILLUSTRATIVE: made-up tally for the README example, not a real scan"
+    },
+    {
+      "format": "meme-trend",
+      "layout": null,
+      "count": 1,
+      "basis": "user",
+      "evidence": "ILLUSTRATIVE: made-up tally for the README example, not a real scan"
+    },
+    {
+      "format": "pov",
+      "layout": null,
+      "count": 1,
+      "basis": "user",
+      "evidence": "ILLUSTRATIVE: made-up tally for the README example, not a real scan"
+    },
+    {
+      "format": "storytime",
+      "layout": null,
+      "count": 1,
+      "basis": "user",
+      "evidence": "ILLUSTRATIVE: made-up tally for the README example, not a real scan"
+    },
+    {
+      "format": "case-study",
+      "layout": null,
+      "count": 1,
+      "basis": "user",
+      "evidence": "ILLUSTRATIVE: made-up tally for the README example, not a real scan"
+    },
+    {
+      "format": "before-after",
+      "layout": null,
+      "count": 1,
+      "basis": "user",
+      "evidence": "ILLUSTRATIVE: made-up tally for the README example, not a real scan"
+    },
+    {
+      "format": "product-ui-demo",
+      "layout": null,
+      "count": 1,
+      "basis": "user",
+      "evidence": "ILLUSTRATIVE: made-up tally for the README example, not a real scan"
+    },
+    {
+      "format": "podcast-clip",
+      "layout": null,
+      "count": 1,
+      "basis": "user",
+      "evidence": "ILLUSTRATIVE: made-up tally for the README example, not a real scan"
+    },
+    {
+      "format": "motion-graphics",
+      "layout": null,
+      "count": 0,
+      "basis": "user",
+      "evidence": "ILLUSTRATIVE: made-up tally for the README example, not a real scan"
+    },
+    {
+      "format": "data-visual",
+      "layout": null,
+      "count": 0,
+      "basis": "user",
+      "evidence": "ILLUSTRATIVE: made-up tally for the README example, not a real scan"
+    },
+    {
+      "format": "vox-collage",
+      "layout": null,
+      "count": 0,
+      "basis": "user",
+      "evidence": "ILLUSTRATIVE: made-up tally for the README example, not a real scan"
+    },
+    {
+      "format": "whiteboard",
+      "layout": null,
+      "count": 0,
+      "basis": "user",
+      "evidence": "ILLUSTRATIVE: made-up tally for the README example, not a real scan"
+    },
+    {
+      "format": "tutorial",
+      "layout": null,
+      "count": 0,
+      "basis": "user",
+      "evidence": "ILLUSTRATIVE: made-up tally for the README example, not a real scan"
+    },
+    {
+      "format": "skit",
+      "layout": null,
+      "count": 0,
+      "basis": "user",
+      "evidence": "ILLUSTRATIVE: made-up tally for the README example, not a real scan"
+    },
+    {
+      "format": "interview-street",
+      "layout": null,
+      "count": 0,
+      "basis": "user",
+      "evidence": "ILLUSTRATIVE: made-up tally for the README example, not a real scan"
+    },
+    {
+      "format": "challenge-experiment",
+      "layout": null,
+      "count": 0,
+      "basis": "user",
+      "evidence": "ILLUSTRATIVE: made-up tally for the README example, not a real scan"
+    },
+    {
+      "format": "day-in-life",
+      "layout": null,
+      "count": 0,
+      "basis": "user",
+      "evidence": "ILLUSTRATIVE: made-up tally for the README example, not a real scan"
+    },
+    {
+      "format": "process-asmr",
+      "layout": null,
+      "count": 0,
+      "basis": "user",
+      "evidence": "ILLUSTRATIVE: made-up tally for the README example, not a real scan"
+    },
+    {
+      "format": "cinematic-essay",
+      "layout": null,
+      "count": 0,
+      "basis": "user",
+      "evidence": "ILLUSTRATIVE: made-up tally for the README example, not a real scan"
+    },
+    {
+      "format": "mini-doc",
+      "layout": null,
+      "count": 0,
+      "basis": "user",
+      "evidence": "ILLUSTRATIVE: made-up tally for the README example, not a real scan"
+    },
+    {
+      "format": "vox-collage",
+      "layout": "paper-to-glass",
+      "count": 0,
+      "basis": "user",
+      "evidence": "ILLUSTRATIVE: made-up tally for the README example, not a real scan"
+    },
+    {
+      "format": "faceless-explainer",
+      "layout": "paper-to-glass",
+      "count": 0,
+      "basis": "user",
+      "evidence": "ILLUSTRATIVE: made-up tally for the README example, not a real scan"
+    }
+  ]
+}
