@@ -12,7 +12,8 @@
       "youtube-shorts",
       "instagram-reels"
     ],
-    "note": "Illustrative numbers only."
+    "note": "Illustrative numbers only.",
+    "evidence": "ILLUSTRATIVE: a made-up tally for the README example, not a real scan"
   },
   "creator": {
     "faceless": true,
@@ -35,210 +36,209 @@
       "layout": null,
       "count": 18,
       "basis": "user",
-      "evidence": "ILLUSTRATIVE: made-up tally for the README example, not a real scan"
+      "evidence": ""
     },
     {
       "format": "ai-slideshow",
       "layout": null,
       "count": 12,
       "basis": "user",
-      "evidence": "ILLUSTRATIVE: made-up tally for the README example, not a real scan"
+      "evidence": ""
     },
     {
       "format": "talking-head",
       "layout": null,
       "count": 9,
       "basis": "user",
-      "evidence": "ILLUSTRATIVE: made-up tally for the README example, not a real scan"
+      "evidence": ""
     },
     {
       "format": "screen-recording",
       "layout": null,
       "count": 7,
       "basis": "user",
-      "evidence": "ILLUSTRATIVE: made-up tally for the README example, not a real scan"
+      "evidence": ""
     },
     {
       "format": "listicle",
       "layout": null,
       "count": 5,
       "basis": "user",
-      "evidence": "ILLUSTRATIVE: made-up tally for the README example, not a real scan"
+      "evidence": ""
     },
     {
       "format": "faceless-explainer",
       "layout": null,
       "count": 4,
       "basis": "user",
-      "evidence": "ILLUSTRATIVE: made-up tally for the README example, not a real scan"
+      "evidence": ""
     },
     {
       "format": "green-screen",
       "layout": null,
       "count": 4,
       "basis": "user",
-      "evidence": "ILLUSTRATIVE: made-up tally for the README example, not a real scan"
+      "evidence": ""
     },
     {
       "format": "carousel",
       "layout": null,
       "count": 3,
       "basis": "user",
-      "evidence": "ILLUSTRATIVE: made-up tally for the README example, not a real scan"
+      "evidence": ""
     },
     {
       "format": "reaction-stitch",
       "layout": null,
       "count": 2,
       "basis": "user",
-      "evidence": "ILLUSTRATIVE: made-up tally for the README example, not a real scan"
+      "evidence": ""
     },
     {
       "format": "meme-trend",
       "layout": null,
       "count": 1,
       "basis": "user",
-      "evidence": "ILLUSTRATIVE: made-up tally for the README example, not a real scan"
+      "evidence": ""
     },
     {
       "format": "pov",
       "layout": null,
       "count": 1,
       "basis": "user",
-      "evidence": "ILLUSTRATIVE: made-up tally for the README example, not a real scan"
+      "evidence": ""
     },
     {
       "format": "storytime",
       "layout": null,
       "count": 1,
       "basis": "user",
-      "evidence": "ILLUSTRATIVE: made-up tally for the README example, not a real scan"
+      "evidence": ""
     },
     {
       "format": "case-study",
       "layout": null,
       "count": 1,
       "basis": "user",
-      "evidence": "ILLUSTRATIVE: made-up tally for the README example, not a real scan"
+      "evidence": ""
     },
     {
       "format": "before-after",
       "layout": null,
       "count": 1,
       "basis": "user",
-      "evidence": "ILLUSTRATIVE: made-up tally for the README example, not a real scan"
+      "evidence": ""
     },
     {
       "format": "product-ui-demo",
       "layout": null,
       "count": 1,
       "basis": "user",
-      "evidence": "ILLUSTRATIVE: made-up tally for the README example, not a real scan"
+      "evidence": ""
     },
     {
       "format": "podcast-clip",
       "layout": null,
       "count": 1,
       "basis": "user",
-      "evidence": "ILLUSTRATIVE: made-up tally for the README example, not a real scan"
+      "evidence": ""
     },
     {
       "format": "motion-graphics",
       "layout": null,
       "count": 0,
       "basis": "user",
-      "evidence": "ILLUSTRATIVE: made-up tally for the README example, not a real scan"
+      "evidence": ""
     },
     {
       "format": "data-visual",
       "layout": null,
       "count": 0,
       "basis": "user",
-      "evidence": "ILLUSTRATIVE: made-up tally for the README example, not a real scan"
+      "evidence": ""
     },
     {
       "format": "vox-collage",
       "layout": null,
       "count": 0,
       "basis": "user",
-      "evidence": "ILLUSTRATIVE: made-up tally for the README example, not a real scan"
+      "evidence": ""
     },
     {
       "format": "whiteboard",
       "layout": null,
       "count": 0,
       "basis": "user",
-      "evidence": "ILLUSTRATIVE: made-up tally for the README example, not a real scan"
+      "evidence": ""
     },
     {
       "format": "tutorial",
       "layout": null,
       "count": 0,
       "basis": "user",
-      "evidence": "ILLUSTRATIVE: made-up tally for the README example, not a real scan"
+      "evidence": ""
     },
     {
       "format": "skit",
       "layout": null,
       "count": 0,
       "basis": "user",
-      "evidence": "ILLUSTRATIVE: made-up tally for the README example, not a real scan"
+      "evidence": ""
     },
     {
       "format": "interview-street",
       "layout": null,
       "count": 0,
       "basis": "user",
-      "evidence": "ILLUSTRATIVE: made-up tally for the README example, not a real scan"
+      "evidence": ""
     },
     {
       "format": "challenge-experiment",
       "layout": null,
       "count": 0,
       "basis": "user",
-      "evidence": "ILLUSTRATIVE: made-up tally for the README example, not a real scan"
+      "evidence": ""
     },
     {
       "format": "day-in-life",
       "layout": null,
       "count": 0,
       "basis": "user",
-      "evidence": "ILLUSTRATIVE: made-up tally for the README example, not a real scan"
+      "evidence": ""
     },
     {
       "format": "process-asmr",
       "layout": null,
-      "count": 0,
-      "basis": "user",
-      "evidence": "ILLUSTRATIVE: made-up tally for the README example, not a real scan"
+      "applicable": false,
+      "reason": "no physical making process in a software niche"
     },
     {
       "format": "cinematic-essay",
       "layout": null,
       "count": 0,
       "basis": "user",
-      "evidence": "ILLUSTRATIVE: made-up tally for the README example, not a real scan"
+      "evidence": ""
     },
     {
       "format": "mini-doc",
       "layout": null,
       "count": 0,
       "basis": "user",
-      "evidence": "ILLUSTRATIVE: made-up tally for the README example, not a real scan"
+      "evidence": ""
     },
     {
       "format": "vox-collage",
       "layout": "paper-to-glass",
       "count": 0,
       "basis": "user",
-      "evidence": "ILLUSTRATIVE: made-up tally for the README example, not a real scan"
+      "evidence": ""
     },
     {
       "format": "faceless-explainer",
       "layout": "paper-to-glass",
       "count": 0,
       "basis": "user",
-      "evidence": "ILLUSTRATIVE: made-up tally for the README example, not a real scan"
+      "evidence": ""
     }
   ]
 }

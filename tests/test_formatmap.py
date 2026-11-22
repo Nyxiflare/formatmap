@@ -158,6 +158,65 @@ class StatusTests(unittest.TestCase):
         self.assertAlmostEqual(r["score"], round(w["premium"] * 8 + w["openness"] * 8 + w["ease"] * 4, 2))
 
 
+class NewFieldTests(unittest.TestCase):
+    def test_not_applicable_is_left_out(self):
+        s = scan()
+        s["entries"] = [entry("data-visual", 0), {"format": "product-ui-demo", "applicable": False,
+                                                    "reason": "no software in an espresso niche"}]
+        rows = {r["format"]: r for r in fm.evaluate(s, CAT)}
+        self.assertEqual(rows["product-ui-demo"]["status"], "n/a")
+        self.assertIn("espresso", rows["product-ui-demo"]["reason"])
+        res = fm.build_result(s, CAT)
+        self.assertNotIn("product-ui-demo", [r["format"] for r in res["recommendations"]])
+        self.assertIn("Left out: Clean UI", fm.render_md(res))
+        self.assertIn("no software", fm.render_html(res))
+
+    def test_adjust_nudges_count_derived_saturation(self):
+        s = scan()
+        s["entries"] = [dict(entry("process-asmr", count=11, basis="observed", evidence="all look the same"), adjust=1)]
+        self.assertEqual(fm.validate_scan(s, CAT), ([], []))
+        r = fm.evaluate(s, CAT)[0]
+        self.assertEqual(r["saturation"], fm.saturation_from_share(0.11, CAT["scoring"]["saturation_bands"]) + 1)
+        s["entries"][0]["adjust"] = 2
+        self.assertTrue(fm.validate_scan(s, CAT)[0])
+
+    def test_shared_sample_evidence(self):
+        s = scan()
+        s["sample"] = {"size": 50, "evidence": "5 YouTube Shorts searches, 22 Nov"}
+        s["entries"] = [entry("pov", count=3, basis="observed", evidence="")]
+        self.assertEqual(fm.validate_scan(s, CAT)[0], [])
+        page = fm.render_html(fm.build_result(s, CAT))
+        self.assertEqual(page.count("5 YouTube Shorts searches"), 1)
+
+    def test_platform_native_formats(self):
+        s = scan(platforms=["youtube-shorts"])
+        s["entries"] = [entry("carousel", 1)]
+        r = fm.evaluate(s, CAT)[0]
+        self.assertEqual(r["status"], "n/a")
+        self.assertIn("not native", r["reason"])
+        s["creator"]["platforms"] = ["youtube-shorts", "tiktok"]
+        r = fm.evaluate(s, CAT)[0]
+        self.assertNotEqual(r["status"], "n/a")
+        self.assertEqual(r["platform_note"], "only on tiktok")
+        s["creator"]["platforms"] = ["instagram-reels"]
+        self.assertEqual(fm.evaluate(s, CAT)[0]["platform_note"], "")
+
+    def test_rows_sorted_actionable_first(self):
+        s = scan()
+        s["entries"] = [entry("mini-doc", 0), entry("data-visual", 2), entry("text-on-broll", 9),
+                        entry("case-study", 1, basis="observed", evidence="x")]
+        order = [r["format"] for r in fm.evaluate(s, CAT)]
+        self.assertEqual(order[:2], ["case-study", "data-visual"])  # observed open before estimated open
+        self.assertLess(order.index("text-on-broll"), order.index("mini-doc"))  # upgrade before stretch
+
+    def test_check_warnings_stay_out_of_report(self):
+        s = scan()
+        s["entries"] = [entry("pov", 3, evidence=""), entry("data-visual", 1)]
+        res = fm.build_result(s, CAT)
+        self.assertTrue(res["check_warnings"])
+        self.assertNotIn("with no reason", fm.render_html(res) + fm.render_md(res))
+
+
 class ValidationTests(unittest.TestCase):
     def errors(self, s):
         return fm.validate_scan(s, CAT)[0]
@@ -180,7 +239,7 @@ class ValidationTests(unittest.TestCase):
         s["entries"] = [entry("nope", 2), entry("pov", 2, layout="nope"), entry("skit", 2), entry("skit", 2),
                         entry("listicle", 12)]
         errs = " | ".join(self.errors(s))
-        for frag in ("unknown format 'nope'", "unknown layout 'nope'", "duplicate", "0-10"):
+        for frag in ("nope: unknown format", "pov + nope: unknown layout", "skit: listed twice", "0-10"):
             self.assertIn(frag, errs)
 
     def test_creator_required(self):
@@ -212,6 +271,7 @@ class RecommendAndPlanTests(unittest.TestCase):
         self.assertTrue(3 <= len(recs) <= 5)
         self.assertEqual(len({r["format"] for r in recs}), len(recs))
         self.assertTrue(any(r["status"] == "upgrade" for r in recs))
+        self.assertEqual(recs[0]["status"], "upgrade")
         self.assertTrue(all(r["status"] in ("open", "upgrade", "neutral") for r in recs))
 
     def test_top_is_clamped(self):
@@ -241,11 +301,46 @@ class RecommendAndPlanTests(unittest.TestCase):
         res = fm.build_result(s, CAT)
         self.assertTrue(res["plan"]["warnings"])
 
-    def test_upgrade_pieces_cost_more_time(self):
+    def test_upgrade_of_current_format_costs_only_extra_hours(self):
         res = fm.build_result(self.full_scan(), CAT)
         up = [i for i in res["plan"]["items"] if i["status"] == "upgrade"][0]
+        self.assertTrue(up["upgrade_of_current"])
         base = CAT["_formats"][up["format"]]["hours"]["short"]
-        self.assertAlmostEqual(up["hours_each"], base * CAT["scoring"]["upgrade_hours_factor"])
+        sc = CAT["scoring"]
+        self.assertAlmostEqual(up["hours_each"], round(max(base * (sc["upgrade_hours_factor"] - 1), sc["upgrade_min_extra_hours"]), 2))
+        self.assertTrue(any(k["replaces_usual_post"] for k in res["plan"]["calendar"]))
+
+    def test_upgrade_of_new_format_costs_full_upgraded_time(self):
+        s = self.full_scan()
+        s["creator"]["current_formats"] = []
+        res = fm.build_result(s, CAT)
+        up = [i for i in res["plan"]["items"] if i["status"] == "upgrade"][0]
+        base = CAT["_formats"][up["format"]]["hours"]["short"]
+        self.assertAlmostEqual(up["hours_each"], round(base * CAT["scoring"]["upgrade_hours_factor"], 2))
+
+    def test_low_hours_prefers_open_cells_over_neutral_fillers(self):
+        """Tester case: 6 h/week must not fill the test with cheap neutral formats while open ones fit."""
+        s = self.full_scan(hours=6)
+        s["entries"] += [entry("pov", 3), entry("before-after", 4)]  # cheap neutral candidates
+        res = fm.build_result(s, CAT)
+        statuses = [r["status"] for r in res["recommendations"]]
+        self.assertNotIn("neutral", statuses)
+        self.assertEqual(statuses[0], "upgrade")
+        self.assertGreaterEqual(statuses.count("open"), 2)
+
+    def test_more_hours_never_means_fewer_planned_pieces(self):
+        prev_pieces = prev_formats = 0
+        for hours in (2, 4, 6, 8, 10, 15, 20, 30):
+            p = fm.build_result(self.full_scan(hours=hours), CAT)["plan"]
+            pieces = sum(i["pieces"] for i in p["items"])
+            self.assertGreaterEqual(pieces, prev_pieces, hours)
+            self.assertGreaterEqual(len(p["items"]), prev_formats, hours)
+            prev_pieces, prev_formats = pieces, len(p["items"])
+
+    def test_test_hours_per_week_sets_budget(self):
+        s = self.full_scan(hours=10)
+        s["creator"]["test_hours_per_week"] = 4
+        self.assertAlmostEqual(fm.build_result(s, CAT)["plan"]["budget_hours"], 8)
 
     def test_faceless_never_recommends_face_required(self):
         res = fm.build_result(self.full_scan(faceless=True), CAT)
@@ -278,7 +373,7 @@ class OutputTests(unittest.TestCase):
         self.assertNotIn("url(", page)
         self.assertIn("&lt;script&gt;", page)
         self.assertIn("&lt;b&gt;x&lt;/b&gt;", page)
-        self.assertEqual(page.count('class="cell"'), 25)
+        self.assertEqual(len(re.findall(r'class="cell[ "]', page)), 25)
 
     def test_grid_buckets(self):
         self.assertEqual([fm.bucket(v) for v in (1, 2, 3, 4, 5, 6, 7, 8, 9, 10)], [0, 0, 1, 1, 2, 2, 3, 3, 4, 4])

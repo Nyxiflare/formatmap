@@ -10,25 +10,25 @@ Result for the [illustrative example](examples/ai-tools-faceless/) (made-up tall
 
 | Format | Effort | Premium | Saturation | Status |
 |---|---|---|---|---|
+| ★ Text on B-roll | 1 | 2 | 6 | 🟠 Easy but crowded: upgrade it |
 | ★ Data visual / animated chart | 6 | 8 | 0 | 🟢 Open |
 | ★ Faceless explainer + Paper → Glass | 6 | 7 | 0 | 🟢 Open |
-| Vox-style collage explainer | 8 | 9 | 0 | 🟢 Open (10h a piece) |
+| Vox-style collage explainer | 8 | 9 | 0 | 🟢 Open (10h a piece, for later) |
 | Mini-documentary | 9 | 9 | 0 | 🔵 Open, over capacity |
-| ★ Text on B-roll | 1 | 2 | 6 | 🟠 Easy but crowded: upgrade it |
 | AI image slideshow | 1 | 1 | 5 | ⚪ Neutral |
 | Talking head | 2 | 3 | 4 | ⛔ Needs a face |
 
-…plus a **self-contained HTML heat map** (effort × premium, coloured by saturation), a **premium-upgrade checklist** for text-on-B-roll and stock explainers (polish, insight, novelty, detail), and a **2-week test plan** that fits in 18.5 of the 20 hours available.
+…plus a **self-contained HTML heat map** (effort × premium, coloured by saturation), a **premium-upgrade checklist** for text-on-B-roll and stock explainers (polish, insight, novelty, detail), and a **2-week test plan** that fits in 19 of the 20 hours available. The text-on-B-roll upgrade replaces a usual post, so it only costs the extra hour.
 
 ## What it does
 
-- **Catalogue of 28 formats and 12 visual layouts** (talking head, green screen, text on B-roll, carousel, POV, tutorial, listicle, storytime, faceless explainer, Vox-style collage, screen recording, skit, street interview, mini-doc, data visual, clean UI demo, whiteboard, case study…), each with effort, premium, typical hours, a definition, examples and an upgrade checklist.
+- **Catalogue of 29 formats and 12 visual layouts** (talking head, green screen, text on B-roll, carousel, POV, tutorial, listicle, storytime, faceless explainer, Vox-style collage, screen recording, skit, street interview, mini-doc, data visual, clean UI demo, whiteboard, case study, reviews…), each with effort, premium, typical hours, a definition, examples and an upgrade checklist.
 - **Format + layout combinations:** e.g. a faceless explainer in a *Paper → Glass* layout (problem in paper collage, solution in clean glass UI) is scored as its own cell.
 - **Niche scan:** Claude samples what your audience is shown (search results, competitor channels, your pasted feed), tallies formats, and the script turns the tally into a 0–10 saturation score.
 - **Honest about evidence:** every saturation is labelled *observed*, *from you* or *estimated*; observed values need evidence; unknown formats are never called open; and **it never invents view counts**.
-- **Sized to you:** hours per week, max effort, faceless or not, short or long form. Face-only formats are blocked for faceless creators.
+- **Sized to you:** hours per week, max effort, faceless or not, short or long form, your platforms. Face-only formats are blocked for faceless creators; formats that aren't native to your platforms or can't fit your niche are left out (with the reason shown), so "nobody does it" never gets mistaken for "open".
 - **Premium upgrades:** for the easy formats you already make, a concrete polish / insight / novelty / detail checklist, so easy formats keep working.
-- **3–5 formats to test** and a 2-week calendar that fits your hours, with honest warnings when it doesn't.
+- **3–5 formats to test** and a 2-week calendar that fits your hours: one premium upgrade of what you already make, then the best open cells, never padded with filler. Honest warnings when the hours are tight.
 - **Editable ratings:** every rating, threshold and weight lives in [`references/catalogue.json`](references/catalogue.json). Change a number, rebuild the map. Per-creator `overrides` for your real skills.
 
 ## Install
@@ -55,7 +55,8 @@ You get `formatmap-out/formatmap.html` (open it in any browser, works offline) a
 - **Effort and premium are judgement, written down as data.** They're a reasonable default for a solo creator, not measurements. Edit them if your experience differs.
 - **Saturation is only as good as the sample.** Search results are personalised and change daily; Claude can't see inside TikTok or Instagram without the tools to do so. When most values are estimated, the map says it's a hypothesis.
 - "Open" means nobody is filling it well yet, not proof the audience wants it. The 2-week test is what tells you.
-- Format recognition from titles and thumbnails is Claude's call and can be wrong for edge cases.
+- Format recognition from titles and thumbnails is Claude's call and can be wrong for edge cases (the classification rules are in [`references/niche-scan.md`](references/niche-scan.md)).
+- Tested once end to end by a fresh agent on a real niche (98 YouTube Shorts sampled); not yet tried by real creators.
 - No guarantees of views or growth.
 
 ## Requirements

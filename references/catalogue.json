@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "about": "FormatMap ratings. Every number here is editable data: change a rating, add a format or tweak the scoring and the script picks it up. effort = production cost (1 = minutes on a phone, 10 = a small team for weeks). premium = how premium it feels to a viewer scrolling past (1 = obvious low effort, 10 = looks like a studio made it). hours = typical hours for one finished piece by a solo creator at that length. face = required | optional | none. These are starting judgements, not measurements: adjust them per creator with 'overrides' in the scan file.",
+  "about": "FormatMap ratings. Every number here is editable data: change a rating, add a format or tweak the scoring and the script picks it up. effort = production cost (1 = minutes on a phone, 10 = a small team for weeks). premium = how premium it feels to a viewer scrolling past (1 = obvious low effort, 10 = looks like a studio made it). hours = typical hours for one finished piece by a solo creator at that length. face = required | optional | none. platforms (optional) = where the format is native; a creator on none of them gets it left out. These are starting judgements, not measurements: adjust them per creator with 'overrides' in the scan file.",
   "scale": {
     "effort": "1 = phone, one take, no edit; 3 = a light edit and captions; 5 = scripting, several shots, a real edit; 7 = animation or a shoot day; 10 = a team for weeks",
     "premium": "1 = reads as copy-paste; 3 = ordinary feed content; 5 = clearly made with care; 7 = looks like a media brand; 10 = looks like a studio production",
@@ -28,7 +28,8 @@
     "test_days": 14,
     "upgrade_hours_factor": 1.5,
     "layout_hours_per_effort": 0.25,
-    "fill_min_premium": 4
+    "fill_min_premium": 4,
+    "upgrade_min_extra_hours": 1
   },
   "formats": [
     {
@@ -80,6 +81,7 @@
       "id": "carousel",
       "name": "Carousel / slides",
       "lengths": ["short"],
+      "platforms": ["instagram", "tiktok", "linkedin", "threads", "x", "facebook"],
       "effort": 2, "premium": 4, "face": "none",
       "hours": {"short": 1.5},
       "definition": "A swipeable set of images or slides (Instagram, LinkedIn, TikTok photo mode).",
@@ -404,6 +406,21 @@
         "insight": ["A fair method explained in one line", "A result that surprised you"],
         "novelty": ["An experiment nobody in the niche has run", "Let the audience vote on the next test"],
         "detail": ["Record the data as you go", "Show the losing option fairly"]
+      }
+    },
+    {
+      "id": "review-comparison",
+      "name": "Review / comparison / buying advice",
+      "lengths": ["short", "long"],
+      "effort": 4, "premium": 5, "face": "optional",
+      "hours": {"short": 3, "long": 12},
+      "definition": "Judging products or options: a single review, a head-to-head, \"best X under $Y\", \"don't buy this\".",
+      "examples": ["\"Is the cheapest espresso machine worth it?\"", "\"Notion vs Obsidian after a year\""],
+      "upgrades": {
+        "polish": ["Film every product the same way (same light, angle, background)", "A clean verdict card per product"],
+        "insight": ["Test on a criterion that matters and show the result, not the spec sheet", "Say who should NOT buy it"],
+        "novelty": ["A blind test or a long-term follow-up", "Compare against a surprising alternative (the cheap option, the DIY option)"],
+        "detail": ["Disclose sponsorships and affiliate links", "Show prices with the date they were checked"]
       }
     },
     {

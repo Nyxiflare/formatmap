@@ -37,11 +37,18 @@ user's working folder (outputs go to `./formatmap-out/`). Below, `FM` stands for
 ### 1. Profile the creator (ask only what you can't see)
 
 You need: the niche (in the audience's words), **short or long form** (if both, run one map each),
-platforms, **hours per week** for content, **face or faceless**, what they make now (map it to format
+platforms (ids like `youtube-shorts`, `tiktok`, `instagram-reels`, `youtube`, `linkedin`: formats
+not native to any of them are left out), **hours per week** for content (if their usual posts
+already use most of it, set `creator.test_hours_per_week` to what's left for new formats), **face or faceless**, what they make now (map it to format
 ids for `--current`), any special skill or setup (a motion designer, a studio, a template library),
 and links to their channel or profile if they have one. Read the links if you can: titles and
 thumbnails tell you their current formats. Ask at most one short message of questions; default to
 6 h/week and "on camera OK" only if they won't say, and state the default.
+
+**"My views dropped"** is often a format problem, but not always. Say in one line that a format map
+can't diagnose a drop on its own (platform changes, a change in topic or posting rhythm, one outlier
+video), and suggest checking their analytics for where it started (or a channel audit / retention
+review skill if one is installed). Then make the map.
 
 If they describe a house style (e.g. "faceless, Paper → Glass: Vox collage for the problem, clean
 Apple-like UI for the solution"), add matching **format + layout** entries to the scan (e.g.
@@ -52,8 +59,14 @@ Apple-like UI for the solution"), add matching **format + layout** entries to th
 
 Follow `references/niche-scan.md`. In short: 3–5 audience queries, the top ~20 results per query on
 the creator's platform, tally formats, give the script the tally (`sample.size` + `count` per entry)
-so saturation is derived, not guessed. Use the tools this session actually has (web search, page
-fetch, a YouTube tool, the user's pasted feed) and say which ones you used.
+so saturation is derived, not guessed. Classify each item by the rules in niche-scan.md §3. Use the
+tools this session actually has (web search, page fetch, a shell, a YouTube tool, the user's pasted
+feed) and say which worked; niche-scan.md lists the routes that tend to fail and one that works.
+Put the shared evidence once in `sample.evidence`.
+
+**Before building, mark formats that can't fit this niche** with `"applicable": false` and a
+`reason` (niche-scan.md §5). Otherwise every format nobody makes looks "open", including ones that
+make no sense here.
 
 Honesty rules, non-negotiable:
 - Label every saturation with `basis`: `observed` (you counted it in this session, with evidence),
@@ -64,10 +77,12 @@ Honesty rules, non-negotiable:
 - If you can't browse, say so, estimate, and ask the user to paste 10–20 titles from their own
   search/For You page for one query to firm it up. Leave a format's saturation null when you
   genuinely can't tell; the map shows it as unknown and never calls it open.
+- To nudge a counted saturation, use `"adjust": 1` or `-1` with the reason in `evidence`.
 - Use `overrides` (with a `reason`) to adjust effort/hours for this creator's real skills. Don't
   raise premium to make a favourite format win.
 
-Then `FM check scan.json` and fix any errors.
+Then `FM check scan.json` and fix any errors. Warnings from `check` and `build` are for you, not
+the creator; they never appear in the report.
 
 ### 3. Build the map
 
@@ -82,6 +97,11 @@ Then `FM check scan.json` and fix any errors.
 | **Neutral** | Middle of the map |
 | **Unknown** | No saturation data. Never recommended as open |
 | **Needs a face** | Creator is faceless and the format requires a face |
+| *Left out* | Marked not applicable, not this length, or not native to the creator's platforms |
+
+The table lists actionable rows first (open, then upgrade, then over capacity...), observed before
+estimated. In the HTML, each chip is coloured by its own saturation; the shaded top rows (premium
+7–10) are the breakout zone, and the greyed bottom rows stay low-premium however empty they are.
 
 Thresholds and weights are in `catalogue.json → scoring`. The HTML is self-contained (no external
 requests) and works offline; send the user the `formatmap.html` path and show the markdown table in
@@ -96,14 +116,23 @@ invoice template on screen" beats "add proof"). Test one upgrade at a time.
 
 ### 5. Recommend 3–5 formats and the 2-week test
 
-The script picks 3–5 (best open cells, plus one easy format to upgrade, sized so the whole test fits
-the hours) and lays out a 2-week calendar. Read `references/test-plan.md`, then for each recommended
+The script picks the formats and lays out a 2-week calendar. How it picks:
+- **First, one easy-but-crowded format to upgrade**, preferring one the creator already makes. An
+  upgraded piece replaces a usual post, so it only costs the *extra* hours. If there's no such
+  format in the niche, say so: the creator's easy formats aren't crowded yet.
+- **Then open cells**, observed before estimated, then by score, as long as one piece of each still
+  fits. Formats that fit a full test (2 pieces) come first.
+- **Neutral formats only to reach three**, never to pad.
+- If fewer formats fit than `--top` asked for, the plan says so; a low-hour creator may get three
+  formats with some single pieces (flagged as hints, not verdicts).
+ Read `references/test-plan.md`, then for each recommended
 format write:
 - why it's open in *this* niche (cite the scan evidence),
 - the first piece's brief: hook, the one idea, format + layout, 3–5 visual beats, time budget,
 - for faceless creators, how it works without a face.
 
-If the script dropped a format or shrank it to one piece because of time, say so plainly. If the user
+If a strong open format didn't fit the hours, name it as the next step ("with 2 more hours a week,
+add data visuals"). If a piece got only one slot, say so plainly. If the user
 disagrees with a pick, change the scan (or an override) and rebuild rather than overruling the map in
 prose.
 
@@ -118,8 +147,8 @@ Map: formatmap-out/formatmap.html
 ### Test next
 1. **[format + layout]** — why it's open here (evidence). First piece: [brief]
 ...
-### Premium upgrades for [easy format]
-- [2 concrete upgrades for this niche]
+### Premium upgrades for your easy formats
+- [for each easy format: the 2 upgrades that fit this niche best, made concrete; merge formats whose upgrades overlap]
 ### 2-week plan
 [calendar from the build] · [hours] of [budget] h
 ### How to judge it

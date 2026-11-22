@@ -56,6 +56,7 @@ SCORING_DEFAULTS = {
     "upgrade_hours_factor": 1.5,
     "layout_hours_per_effort": 0.25,
     "fill_min_premium": 4,
+    "upgrade_min_extra_hours": 1,
 }
 
 
@@ -126,6 +127,9 @@ def validate_catalogue(cat: dict) -> None:
                 fail(f"catalogue format {fid}: {k} must be a number from 1 to 10")
         if f.get("face") not in FACE:
             fail(f"catalogue format {fid}: face must be one of {', '.join(FACE)}")
+        plats = f.get("platforms")
+        if plats is not None and (not isinstance(plats, list) or not all(isinstance(x, str) for x in plats)):
+            fail(f"catalogue format {fid}: platforms must be a list of platform names")
         lengths = f.get("lengths") or []
         if not lengths or any(x not in LENGTHS for x in lengths):
             fail(f"catalogue format {fid}: lengths must be a non-empty list of short/long")
@@ -162,8 +166,17 @@ def saturation_from_share(share: float, bands: list) -> int:
 
 # --------------------------------------------------------------------------- scan file
 
+def entry_label(e: dict) -> str:
+    return str(e.get("format")) + (f" + {e['layout']}" if e.get("layout") else "")
+
+
+def norm_platform(p: str) -> str:
+    return str(p).strip().lower().replace(" ", "-").replace("_", "-")
+
+
 def validate_scan(scan: dict, cat: dict) -> tuple[list, list]:
-    """Return (errors, warnings). Errors stop a build."""
+    """Return (errors, warnings). Errors stop a build. Both are for whoever fills in the scan,
+    not for the creator, so they never appear in the HTML or markdown report."""
     errors, warnings = [], []
     if not isinstance(scan, dict):
         return ["scan file must be a JSON object"], []
@@ -179,11 +192,16 @@ def validate_scan(scan: dict, cat: dict) -> tuple[list, list]:
     hpw = creator.get("hours_per_week")
     if not isinstance(hpw, (int, float)) or hpw <= 0:
         errors.append("creator.hours_per_week must be a positive number")
+    thw = creator.get("test_hours_per_week")
+    if thw is not None and (not isinstance(thw, (int, float)) or thw <= 0):
+        errors.append("creator.test_hours_per_week must be a positive number (or leave it out)")
     me = creator.get("max_effort", 10)
     if not isinstance(me, (int, float)) or not 1 <= me <= 10:
         errors.append("creator.max_effort must be 1-10 (leave it out for no limit)")
     if not isinstance(creator.get("faceless", False), bool):
         errors.append("creator.faceless must be true or false")
+    if not isinstance(creator.get("platforms", []) or [], list):
+        errors.append("creator.platforms must be a list, e.g. [\"youtube-shorts\", \"tiktok\"]")
     for cid in creator.get("current_formats", []) or []:
         if cid not in cat["_formats"]:
             errors.append(f"creator.current_formats: unknown format {cid!r}")
@@ -203,47 +221,60 @@ def validate_scan(scan: dict, cat: dict) -> tuple[list, list]:
     if size is not None and (not isinstance(size, int) or size <= 0):
         errors.append("sample.size must be a positive whole number")
         size = None
+    shared_evidence = str(sample.get("evidence") or "").strip()
     entries = scan.get("entries")
     if not isinstance(entries, list) or not entries:
         errors.append("'entries' must be a non-empty list")
         entries = []
     seen = set()
     counted = 0
-    for i, e in enumerate(entries, 1):
-        tag = f"entries[{i}]"
+    for e in entries:
+        tag = entry_label(e)
         fid, lid = e.get("format"), e.get("layout")
         if fid not in cat["_formats"]:
-            errors.append(f"{tag}: unknown format {fid!r} (run 'catalogue' for ids)")
+            errors.append(f"{tag}: unknown format (run 'catalogue' for ids)")
             continue
         if lid is not None and lid not in cat["_layouts"]:
-            errors.append(f"{tag}: unknown layout {lid!r} (run 'catalogue --layouts')")
+            errors.append(f"{tag}: unknown layout (run 'catalogue --layouts')")
         key = (fid, lid)
         if key in seen:
-            errors.append(f"{tag}: duplicate entry for {fid}" + (f" + {lid}" if lid else ""))
+            errors.append(f"{tag}: listed twice")
         seen.add(key)
-        sat, cnt = e.get("saturation"), e.get("count")
+        app = e.get("applicable", True)
+        if not isinstance(app, bool):
+            errors.append(f"{tag}: applicable must be true or false")
+        elif app is False:
+            if not str(e.get("reason") or "").strip():
+                warnings.append(f"{tag}: marked not applicable without a 'reason'")
+            continue
+        sat, cnt, adj = e.get("saturation"), e.get("count"), e.get("adjust", 0)
         if sat is not None and (not isinstance(sat, (int, float)) or not 0 <= sat <= 10):
-            errors.append(f"{tag} {fid}: saturation must be 0-10 or null")
+            errors.append(f"{tag}: saturation must be 0-10 or null")
+        if adj not in (-1, 0, 1):
+            errors.append(f"{tag}: adjust must be -1, 0 or 1")
+        elif adj and sat is None and cnt is None:
+            errors.append(f"{tag}: adjust needs a count or a saturation to adjust")
+        elif adj and not str(e.get("evidence") or "").strip():
+            warnings.append(f"{tag}: adjusted by {adj:+} without saying why in 'evidence'")
         if cnt is not None:
             if not isinstance(cnt, int) or cnt < 0:
-                errors.append(f"{tag} {fid}: count must be a whole number >= 0")
+                errors.append(f"{tag}: count must be a whole number >= 0")
             elif size is None:
-                errors.append(f"{tag} {fid}: has a count but sample.size is missing")
+                errors.append(f"{tag}: has a count but sample.size is missing")
             elif cnt > size:
-                errors.append(f"{tag} {fid}: count {cnt} is larger than sample.size {size}")
+                errors.append(f"{tag}: count {cnt} is larger than sample.size {size}")
             else:
                 counted += cnt
             if sat is not None:
-                warnings.append(f"{tag} {fid}: both count and saturation given; count wins")
+                warnings.append(f"{tag}: both count and saturation given; the count wins (use 'adjust' to nudge it)")
         basis = e.get("basis")
         if (sat is not None or cnt is not None) and basis not in BASES:
-            errors.append(f"{tag} {fid}: basis must be one of {', '.join(BASES)}")
-        if basis in ("observed", "user") and not str(e.get("evidence") or "").strip():
-            errors.append(f"{tag} {fid}: basis '{basis}' needs evidence (which queries/sample, and when)")
-        if basis == "observed" and cnt is None and sat is not None:
-            warnings.append(f"{tag} {fid}: observed but no count; give the tally so saturation is derived, not guessed")
-        if basis == "estimated" and not str(e.get("evidence") or "").strip() and sat is not None:
-            warnings.append(f"{tag} {fid}: estimated with no reason")
+            errors.append(f"{tag}: basis must be one of {', '.join(BASES)}")
+        has_ev = str(e.get("evidence") or "").strip() or shared_evidence
+        if basis in ("observed", "user") and not has_ev:
+            errors.append(f"{tag}: basis '{basis}' needs evidence (in the entry or in sample.evidence)")
+        if basis == "estimated" and sat is not None and not str(e.get("evidence") or "").strip():
+            warnings.append(f"{tag}: estimated with no reason")
     if size and counted > size:
         warnings.append(f"counts add up to {counted}, more than sample.size {size} (fine only if items were counted in two formats)")
     return errors, warnings
@@ -264,6 +295,16 @@ def resolved_format(cat: dict, scan: dict, fid: str) -> dict:
     return f
 
 
+STATUS_RANK = {"open": 0, "upgrade": 1, "stretch": 2, "neutral": 3, "crowded": 4, "unknown": 5, "blocked": 6, "n/a": 7}
+
+
+def sort_rows(rows: list[dict]) -> list[dict]:
+    """Actionable first (open, upgrade, stretch...). Within a status, observed evidence before
+    estimates, then by score."""
+    return sorted(rows, key=lambda r: (STATUS_RANK[r["status"]], r["basis"] == "estimated",
+                                       -(r["score"] if r["score"] is not None else -1), r["name"]))
+
+
 def evaluate(scan: dict, cat: dict) -> list[dict]:
     """Score every entry. Pure function of the scan + catalogue."""
     sc = cat["scoring"]
@@ -272,8 +313,11 @@ def evaluate(scan: dict, cat: dict) -> list[dict]:
     hpw = float(creator["hours_per_week"])
     max_effort = creator.get("max_effort", 10)
     faceless = bool(creator.get("faceless", False))
-    size = (scan.get("sample") or {}).get("size")
+    sample = scan.get("sample") or {}
+    size = sample.get("size")
+    shared_evidence = str(sample.get("evidence") or "").strip()
     current = set(creator.get("current_formats", []) or [])
+    platforms = [norm_platform(p) for p in creator.get("platforms", []) or []]
     w = sc["weights"]
     rows = []
     for e in scan["entries"]:
@@ -293,9 +337,19 @@ def evaluate(scan: dict, cat: dict) -> list[dict]:
         else:
             share = None
             sat = e.get("saturation")
+        if sat is not None and e.get("adjust"):
+            sat = clamp(sat + e["adjust"], 0, 10)
+        native = platforms
+        if platforms and f.get("platforms"):
+            native = [p for p in platforms if any(p.startswith(norm_platform(fp)) for fp in f["platforms"])]
         within = hours is not None and effort <= max_effort and hours <= hpw
-        if length not in f["lengths"]:
-            status = "n/a"
+        reason = ""
+        if e.get("applicable", True) is False:
+            status, reason = "n/a", str(e.get("reason") or "not relevant to this niche")
+        elif length not in f["lengths"]:
+            status, reason = "n/a", f"not a {length}-form format"
+        elif platforms and not native:
+            status, reason = "n/a", "not native to " + ", ".join(platforms)
         elif faceless and f["face"] == "required":
             status = "blocked"
         elif sat is None:
@@ -309,104 +363,129 @@ def evaluate(scan: dict, cat: dict) -> list[dict]:
         else:
             status = "neutral"
         score = None
-        if sat is not None:
+        if sat is not None and status != "n/a":
             score = round(w["premium"] * premium + w["openness"] * (10 - sat) + w["ease"] * (10 - effort), 2)
+        platform_note = ""
+        if platforms and native and len(native) < len(platforms):
+            platform_note = "only on " + ", ".join(native)
+        evidence = str(e.get("evidence") or "").strip()
         rows.append({
             "format": f["id"], "layout": lay["id"] if lay else None,
             "name": f["name"] + (f" + {lay['name']}" if lay else ""),
             "effort": effort, "premium": premium, "hours": hours,
-            "saturation": sat, "share": share, "count": e.get("count"),
-            "basis": e.get("basis") if sat is not None else None,
-            "evidence": e.get("evidence", ""), "face": f["face"],
-            "within_capacity": within, "status": status, "score": score,
+            "saturation": sat, "share": share, "count": e.get("count"), "adjust": e.get("adjust", 0),
+            "basis": e.get("basis") if sat is not None and status != "n/a" else None,
+            "evidence": evidence, "shared_evidence": not evidence and e.get("basis") in ("observed", "user") and bool(shared_evidence),
+            "face": f["face"], "within_capacity": within, "status": status, "reason": reason,
+            "platform_note": platform_note, "score": score,
             "current": f["id"] in current, "overridden": f["_overridden"],
         })
-    rows.sort(key=lambda r: (-(r["score"] if r["score"] is not None else -1), r["name"]))
-    return rows
+    return sort_rows(rows)
 
 
 def test_cost(r: dict, sc: dict, pieces: int) -> float:
+    """Hours the test adds. Upgrading a format the creator already posts only costs the extra time,
+    because the upgraded piece replaces a post they would have made anyway."""
     h = r["hours"] or 0
     if r["status"] == "upgrade":
-        h = h * sc["upgrade_hours_factor"]
+        f = sc["upgrade_hours_factor"]
+        h = max(h * (f - 1), sc["upgrade_min_extra_hours"]) if r.get("current") else h * f
     return round(h * pieces, 2)
 
 
-def recommend(rows: list[dict], top: int, budget: float | None = None, sc: dict | None = None) -> list[dict]:
-    """Pick 3-5 formats to test, in priority order, so the whole test fits the time budget.
+WHY = {
+    "open": "open: premium enough, not crowded, fits your time",
+    "upgrade": "easy and crowded: wins only with premium execution",
+    "upgrade-current": "you already make it and it's crowded: test one premium upgrade in place of a usual post",
+    "neutral": "middle of the map: added only to reach three formats within your hours",
+}
 
-    Priority: the best open cells, then one easy-but-crowded format to upgrade, then the remaining
-    open cells, then neutral formats that fit. A candidate is skipped when taking it would leave too
-    few hours for the minimum of three formats."""
+
+def recommend(rows: list[dict], top: int, budget: float | None = None, sc: dict | None = None) -> list[dict]:
+    """Pick 3-5 formats to test so that at least one piece of each fits the time budget.
+
+    Formats that fit a full test (2 pieces) are taken first, then single pieces of the next best.
+    Priority: one easy-but-crowded format to upgrade (the creator's own first: it costs only the
+    extra hours), then open cells (observed before estimated, then by score). Neutral formats are
+    used only to reach the minimum of three. A candidate is skipped when taking it would leave too
+    few hours for one piece of each of the three."""
     top = max(3, min(5, top))
     sc = sc or SCORING_DEFAULTS
-    per = int(sc["test_pieces_per_format"])
-    key = lambda r: -r["score"]
-    opens = sorted([r for r in rows if r["status"] == "open"], key=key)
     ups = sorted([r for r in rows if r["status"] == "upgrade"], key=lambda r: (not r["current"], -r["score"]))
+    opens = [r for r in rows if r["status"] == "open"]  # rows are already in priority order
     neutral = sorted([r for r in rows if r["status"] == "neutral" and r["within_capacity"]
-                      and r["premium"] >= sc["fill_min_premium"]], key=key)
-    why_open = "open: premium enough, not crowded, fits your time"
-    why_up = "easy and crowded: wins only with premium execution"
-    why_mid = "middle of the map: fits your time, worth one test"
-    order = ([(r, why_open) for r in opens[: top - 1]] + [(r, why_up) for r in ups[:1]]
-             + [(r, why_open) for r in opens] + [(r, why_mid) for r in neutral] + [(r, why_up) for r in ups])
-    picked, used, spent = [], set(), 0.0
+                      and r["premium"] >= sc["fill_min_premium"]], key=lambda r: -r["score"])
+    main = [(r, "upgrade-current" if r["current"] else "upgrade") for r in ups[:1]] + [(r, "open") for r in opens]
+    fill = main + [(r, "neutral") for r in neutral]
+    picked, used = [], set()
+    spent = [0.0]
 
-    def reserve(exclude: str) -> float:
+    def reserve(pool, exclude: str, pieces: int) -> float:
         need = 3 - len(picked) - 1
         if need <= 0:
             return 0.0
         costs = {}
-        for r, _ in order:
+        for r, _ in pool:
             if r["format"] not in used and r["format"] != exclude:
-                c = test_cost(r, sc, per)
+                c = test_cost(r, sc, pieces)
                 costs[r["format"]] = min(c, costs.get(r["format"], c))
         return sum(sorted(costs.values())[:need])
 
-    for r, why in order:
-        if len(picked) >= top:
-            break
-        if r["format"] in used:
-            continue
-        cost = test_cost(r, sc, per)
-        if budget is not None and spent + cost + reserve(r["format"]) > budget + 1e-9:
-            continue
-        used.add(r["format"])
-        spent += cost
-        picked.append({**r, "why": why})
-    if len(picked) < 3:  # not even three fit: take the cheapest, the plan will shrink them and warn
-        rest = sorted({r["format"]: (r, why) for r, why in reversed(order) if r["format"] not in used}.values(),
-                      key=lambda x: test_cost(x[0], sc, per))
-        for r, why in rest[: 3 - len(picked)]:
+    def run(pool, limit, pieces=1):
+        for r, why in pool:
+            if len(picked) >= limit:
+                return
+            if r["format"] in used:
+                continue
+            cost = test_cost(r, sc, pieces)
+            if budget is not None and spent[0] + cost + reserve(pool, r["format"], pieces) > budget + 1e-9:
+                continue
             used.add(r["format"])
-            picked.append({**r, "why": why})
+            spent[0] += cost
+            picked.append({**r, "why": WHY[why]})
+
+    per = int(sc["test_pieces_per_format"])
+    run(main, top, per)  # first: formats that get a full test
+    run(main, top, 1)  # then: one piece of the next best, if hours remain
+    if len(picked) < 3:
+        run(fill, 3)
+    if len(picked) < 3:  # not even three fit: take the cheapest; the plan will warn
+        rest = {}
+        for r, why in fill:
+            if r["format"] not in used and r["format"] not in rest:
+                rest[r["format"]] = (r, why)
+        for r, why in sorted(rest.values(), key=lambda x: test_cost(x[0], sc, 1))[: 3 - len(picked)]:
+            used.add(r["format"])
+            picked.append({**r, "why": WHY[why]})
     return picked
 
 
+def test_budget(scan: dict, sc: dict) -> float:
+    c = scan["creator"]
+    return round(float(c.get("test_hours_per_week") or c["hours_per_week"]) * int(sc["test_days"]) / 7, 2)
+
+
 def test_plan(recs: list[dict], scan: dict, cat: dict) -> dict:
+    """One piece of each format first, then second pieces in priority order while hours allow."""
     sc = cat["scoring"]
     days = int(sc["test_days"])
     per = int(sc["test_pieces_per_format"])
-    budget = round(float(scan["creator"]["hours_per_week"]) * days / 7, 2)
+    budget = test_budget(scan, sc)
     warnings = []
-    items = []
-    for r in recs:
-        h = test_cost(r, sc, 1)
-        items.append({"format": r["format"], "layout": r["layout"], "name": r["name"],
-                      "hours_each": h, "pieces": per, "status": r["status"]})
+    items = [{"format": r["format"], "layout": r["layout"], "name": r["name"],
+              "hours_each": test_cost(r, sc, 1), "pieces": 1, "status": r["status"],
+              "upgrade_of_current": r["status"] == "upgrade" and bool(r.get("current"))} for r in recs]
     total = lambda: round(sum(i["hours_each"] * i["pieces"] for i in items), 2)
-    while total() > budget and len(items) > 3:
-        dropped = items.pop()
-        warnings.append(f"dropped {dropped['name']} from the test: not enough hours for {len(items) + 1} formats")
-    for i in sorted(items, key=lambda i: -i["hours_each"]):
-        if total() <= budget:
-            break
-        if i["pieces"] > 1:
-            i["pieces"] = 1
-            warnings.append(f"{i['name']}: only 1 piece fits; treat its result as a hint, not a verdict")
+    for _ in range(per - 1):
+        for i in items:
+            if total() + i["hours_each"] <= budget + 1e-9:
+                i["pieces"] += 1
+    for i in items:
+        if i["pieces"] < per:
+            warnings.append(f"{i['name']}: only {i['pieces']} piece fits your hours; treat its result as a hint, not a verdict")
     if total() > budget:
-        weeks = math.ceil(total() / float(scan["creator"]["hours_per_week"]))
+        hpw = float(scan["creator"].get("test_hours_per_week") or scan["creator"]["hours_per_week"])
+        weeks = math.ceil(total() / hpw)
         warnings.append(f"the test needs {num(total())}h but you have {num(budget)}h in {days} days; "
                         f"run it over {weeks} weeks or swap in a lower-effort format")
     seq = []
@@ -423,7 +502,8 @@ def test_plan(recs: list[dict], scan: dict, cat: dict) -> dict:
         counts[i["name"]] = counts.get(i["name"], 0) + 1
         day = 1 + math.floor((k + 0.5) * days / n) if n else 1
         calendar.append({"day": min(day, days), "name": i["name"], "piece": counts[i["name"]],
-                         "hours": i["hours_each"], "format": i["format"]})
+                         "hours": i["hours_each"], "format": i["format"],
+                         "replaces_usual_post": i["upgrade_of_current"]})
     return {"days": days, "budget_hours": budget, "total_hours": total(),
             "spare_hours": round(budget - total(), 2), "items": items,
             "calendar": calendar, "warnings": warnings}
@@ -443,20 +523,22 @@ def upgrade_targets(rows: list[dict], recs: list[dict], cat: dict, scan: dict) -
 
 
 def build_result(scan: dict, cat: dict, top: int = 4) -> dict:
-    errors, warnings = validate_scan(scan, cat)
+    errors, check_warnings = validate_scan(scan, cat)
     if errors:
         fail("scan file has problems:\n  - " + "\n  - ".join(errors))
     rows = evaluate(scan, cat)
     sc = cat["scoring"]
-    budget = float(scan["creator"]["hours_per_week"]) * int(sc["test_days"]) / 7
-    recs = recommend(rows, top, budget, sc)
+    recs = recommend(rows, top, test_budget(scan, sc), sc)
     plan = test_plan(recs, scan, cat)
-    kept = {(i["format"], i["layout"]) for i in plan["items"]}
-    recs = [r for r in recs if (r["format"], r["layout"]) in kept]
-    bases = {b: sum(1 for r in rows if r["basis"] == b) for b in BASES}
-    bases["unknown"] = sum(1 for r in rows if r["saturation"] is None and r["status"] != "n/a")
+    warnings = []
+    live = [r for r in rows if r["status"] != "n/a"]
+    bases = {b: sum(1 for r in live if r["basis"] == b) for b in BASES}
+    bases["unknown"] = sum(1 for r in live if r["saturation"] is None)
+    picked = {r["format"] for r in recs}
     if len(recs) < 3:
         warnings.append(f"only {len(recs)} format(s) qualify; fill in more saturation values or relax max_effort")
+    elif len(recs) < max(3, min(5, top)) and any(r["status"] == "open" and r["format"] not in picked for r in rows):
+        warnings.append(f"{len(recs)} formats fit your test hours; the other open formats on the map are for when you have more time")
     known = sum(bases[b] for b in BASES)
     if known and bases["estimated"] / known > 0.5:
         warnings.append("most saturation values are estimated, not observed: treat the map as a hypothesis "
@@ -467,7 +549,7 @@ def build_result(scan: dict, cat: dict, top: int = 4) -> dict:
             "upgrades": [{"id": fid, "name": cat["_formats"][fid]["name"],
                           "checklist": cat["_formats"][fid].get("upgrades", {})}
                          for fid in upgrade_targets(rows, recs, cat, scan)],
-            "bases": bases, "warnings": warnings}
+            "bases": bases, "warnings": warnings, "check_warnings": check_warnings}
 
 
 # --------------------------------------------------------------------------- grid
@@ -518,6 +600,8 @@ def render_md(res: dict) -> str:
     b = res["bases"]
     L.append(f"Saturation basis: {b['observed']} observed, {b['user']} from you, {b['estimated']} estimated, "
              f"{b['unknown']} unknown" + (f" · sample of {res['sample']['size']}" if res["sample"].get("size") else ""))
+    if res["sample"].get("evidence"):
+        L.append(f"Sample: {res['sample']['evidence']}")
     L.append("")
     L += ["| # | Format | Effort | Premium | Saturation | Basis | Hours | Score | Status |",
           "|---|---|---|---|---|---|---|---|---|"]
@@ -525,9 +609,16 @@ def render_md(res: dict) -> str:
     for i, r in enumerate([r for r in res["rows"] if r["status"] != "n/a"], 1):
         star = " ★" if (r["format"], r["layout"]) in rec_keys else ""
         sat = num(r["saturation"]) + (f" ({r['count']}/{res['sample'].get('size')})" if r["count"] is not None else "")
+        if r.get("adjust"):
+            sat += f" {r['adjust']:+}"
+        note = f" ({r['platform_note']})" if r.get("platform_note") else ""
         L.append(f"| {i} | {r['name']}{star} | {num(r['effort'])} | {num(r['premium'])} | {sat} | "
-                 f"{r['basis'] or '-'} | {num(r['hours'])} | {num(r['score'])} | {STATUS_LABEL[r['status']]} |")
-    L += ["", "★ = recommended to test. Open = premium ≥ threshold, low saturation, within your time.", ""]
+                 f"{r['basis'] or '-'} | {num(r['hours'])} | {num(r['score'])} | {STATUS_LABEL[r['status']]}{note} |")
+    L += ["", "★ = recommended to test. Open = premium ≥ threshold, low saturation, within your time."]
+    left = [r for r in res["rows"] if r["status"] == "n/a"]
+    if left:
+        L.append("Left out: " + "; ".join(f"{r['name']} ({r['reason']})" for r in left) + ".")
+    L.append("")
     L += ["## Test next", ""]
     for i, r in enumerate(res["recommendations"], 1):
         L.append(f"{i}. **{r['name']}** · effort {num(r['effort'])}, premium {num(r['premium'])}, "
@@ -536,7 +627,8 @@ def render_md(res: dict) -> str:
     L += ["", f"## 2-week test plan ({num(p['total_hours'])}h of {num(p['budget_hours'])}h available)", "",
           "| Day | Piece | Hours |", "|---|---|---|"]
     for k in p["calendar"]:
-        L.append(f"| {k['day']} | {k['name']} #{k['piece']} | {num(k['hours'])} |")
+        extra = " (replaces a usual post; extra hours only)" if k.get("replaces_usual_post") else ""
+        L.append(f"| {k['day']} | {k['name']} #{k['piece']}{extra} | {num(k['hours'])} |")
     if res["upgrades"]:
         L += ["", "## Premium upgrades for your easy formats", ""]
         for up in res["upgrades"]:
@@ -551,18 +643,19 @@ def render_md(res: dict) -> str:
 
 CSS = """
 :root{--bg:#f7f6f2;--fg:#1d1d1f;--muted:#6b6b70;--card:#ffffff;--line:#dcdad3;--empty:#eeece6;--heat-l:82%;
---open:#0a7d3c;--stretch:#2a5fb0;--upgrade:#b06a00;--crowded:#b3261e;--neutral:#6b6b70;--unknown:#8a8a8a;--blocked:#9a9a9a}
+--zone:#fbf8ee;--zone-line:#d9c98f;--open:#0a7d3c;--stretch:#2a5fb0;--upgrade:#b06a00;--crowded:#b3261e;--neutral:#6b6b70;--unknown:#8a8a8a;--blocked:#9a9a9a}
 @media (prefers-color-scheme:dark){:root{--bg:#121214;--fg:#ececf0;--muted:#a0a0a8;--card:#1c1c20;--line:#33333a;
---empty:#1f1f24;--heat-l:26%;--open:#4ad07f;--stretch:#7aa8ff;--upgrade:#ffb547;--crowded:#ff7a70;--neutral:#a0a0a8;--unknown:#8a8a8a;--blocked:#6a6a70}}
+--empty:#18181b;--zone:#22211b;--zone-line:#5a5236;--heat-l:26%;--open:#4ad07f;--stretch:#7aa8ff;--upgrade:#ffb547;--crowded:#ff7a70;--neutral:#a0a0a8;--unknown:#8a8a8a;--blocked:#6a6a70}}
 *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}
 main{max-width:1100px;margin:0 auto;padding:24px 16px 64px}h1{font-size:28px;margin:0 0 4px}h2{font-size:19px;margin:36px 0 10px}
 .meta{color:var(--muted);margin:0 0 4px}.map{display:grid;grid-template-columns:34px repeat(5,minmax(0,1fr));gap:4px;margin-top:16px}
-.cell{min-height:96px;border-radius:8px;padding:6px;display:flex;flex-wrap:wrap;align-content:flex-start;gap:4px;border:1px solid var(--line)}
+.cell{min-height:96px;border-radius:8px;padding:6px;display:flex;flex-wrap:wrap;align-content:flex-start;gap:4px;border:1px solid var(--line);background:var(--card)}
+.cell.hi{background:var(--zone);border-color:var(--zone-line)}.cell.lo{background:var(--empty)}.cell.lo .chip{opacity:.72}
 .ax{color:var(--muted);font-size:12px;display:flex;align-items:center;justify-content:center;text-align:center}
 .ylab{writing-mode:vertical-rl;transform:rotate(180deg)}
 .chip{font-size:12px;line-height:1.25;background:var(--card);border-radius:6px;padding:3px 6px;border:2px solid var(--neutral);max-width:100%}
 .chip small{display:block;color:var(--muted);font-size:10.5px}
-.chip.open{border-color:var(--open);font-weight:600}.chip.stretch{border-color:var(--stretch);border-style:dashed}
+.chip.open{border-color:var(--open);font-weight:600}.chip.stretch{border-color:var(--stretch);border-style:double;border-width:3px}
 .chip.upgrade{border-color:var(--upgrade)}.chip.crowded{border-color:var(--crowded)}
 .chip.unknown{border-color:var(--unknown);border-style:dotted}.chip.blocked{border-color:var(--blocked);opacity:.55;text-decoration:line-through}
 .chip.rec{box-shadow:0 0 0 2px var(--fg)}
@@ -599,6 +692,8 @@ def render_html(res: dict) -> str:
     parts.append(f"<p class=\"meta\">Saturation basis: {b['observed']} observed · {b['user']} from you · "
                  f"{b['estimated']} estimated · {b['unknown']} unknown"
                  + (f" · sample of {esc(res['sample']['size'])} results" if res["sample"].get("size") else "") + "</p>")
+    if res["sample"].get("evidence"):
+        parts.append(f"<p class=\"meta\">Sample: {esc(res['sample']['evidence'])}</p>")
     for w in res["warnings"]:
         parts.append(f"<div class=\"note\">{esc(w)}</div>")
     # legend
@@ -606,7 +701,7 @@ def render_html(res: dict) -> str:
     for st in ("open", "stretch", "upgrade", "crowded", "neutral", "unknown", "blocked"):
         parts.append(f"<span class=\"chip {st}\">{esc(STATUS_LABEL[st])}</span>")
     parts.append("<span class=\"chip rec\">★ Recommended</span></div>")
-    parts.append("<div class=\"scale\">Cell colour = the most saturated format in it: "
+    parts.append("<div class=\"scale\">Chip colour = saturation of that format: "
                  + "".join(f"<span style=\"background:{heat_colour(s)}\"></span>" for s in (0, 2, 4, 6, 8, 10))
                  + " 0 (open) → 10 (saturated)</div>")
     # map: rows from high premium to low
@@ -615,21 +710,33 @@ def render_html(res: dict) -> str:
         parts.append(f"<div class=\"ax\">{BUCKET_LABEL[pb]}</div>")
         for eb in range(5):
             cell = g[pb][eb]
-            sats = [r["saturation"] for r in cell if r["saturation"] is not None]
-            top_sat = max(sats) if sats else None
-            title = f"Premium {BUCKET_LABEL[pb]}, effort {BUCKET_LABEL[eb]}" + (
-                f", highest saturation {num(top_sat)}" if top_sat is not None else "")
-            parts.append(f"<div class=\"cell\" role=\"cell\" title=\"{esc(title)}\" style=\"background:{heat_colour(top_sat)}\">")
+            zone = " hi" if pb >= 3 else (" lo" if pb <= 1 else "")
+            title = f"Premium {BUCKET_LABEL[pb]}, effort {BUCKET_LABEL[eb]}"
+            parts.append(f"<div class=\"cell{zone}\" role=\"cell\" title=\"{esc(title)}\">")
             for r in sorted(cell, key=lambda r: (STATUSES.index(r["status"]), r["name"])):
                 rec = (r["format"], r["layout"]) in rec_keys
                 sat = "?" if r["saturation"] is None else num(r["saturation"])
                 basis = {"observed": "obs", "user": "you", "estimated": "est"}.get(r["basis"], "")
-                parts.append(f"<span class=\"chip {r['status']}{' rec' if rec else ''}\" title=\"{esc(STATUS_LABEL[r['status']])}\">"
+                tip = STATUS_LABEL[r["status"]] + f"; saturation {sat}"
+                if r["count"] is not None:
+                    tip += f" ({r['count']} of {res['sample'].get('size')})"
+                if r["basis"]:
+                    tip += f", {r['basis']}"
+                if r.get("platform_note"):
+                    tip += f"; {r['platform_note']}"
+                if r["evidence"]:
+                    tip += f". {r['evidence'][:240]}"
+                parts.append(f"<span class=\"chip {r['status']}{' rec' if rec else ''}\" title=\"{esc(tip)}\" "
+                             f"style=\"background:{heat_colour(r['saturation'])}\">"
                              f"{'★ ' if rec else ''}{esc(r['name'])}<small>sat {esc(sat)} {basis}</small></span>")
             parts.append("</div>")
     parts.append("<div></div>" + "".join(f"<div class=\"ax\">{l}</div>" for l in BUCKET_LABEL))
     parts.append("</div><p class=\"meta\" style=\"text-align:center\">Effort (production cost) →</p>")
-    parts.append("<p class=\"meta\">↑ Perceived premium. The upper rows break out most easily; green cells there are the openings.</p>")
+    parts.append("<p class=\"meta\">↑ Perceived premium. The shaded top rows (premium 7-10) break out most easily: green chips there "
+                 "are the openings. The greyed bottom rows feel low-effort to viewers however empty they look.</p>")
+    left = [r for r in res["rows"] if r["status"] == "n/a"]
+    if left:
+        parts.append("<p class=\"meta\">Left out: " + "; ".join(f"{esc(r['name'])} ({esc(r['reason'])})" for r in left) + ".</p>")
     # recommendations
     parts.append("<h2>Test next</h2><ol>")
     for r in res["recommendations"]:
@@ -641,7 +748,8 @@ def render_html(res: dict) -> str:
                  f"{esc(num(p['budget_hours']))}h available · {esc(num(p['spare_hours']))}h spare</p>")
     parts.append("<div class=\"tablewrap\"><table><tr><th>Day</th><th>Piece</th><th>Hours</th></tr>")
     for k in p["calendar"]:
-        parts.append(f"<tr><td class=\"n\">{k['day']}</td><td>{esc(k['name'])} #{k['piece']}</td><td class=\"n\">{esc(num(k['hours']))}</td></tr>")
+        extra = " <span class=\"ev\">replaces a usual post; extra hours only</span>" if k.get("replaces_usual_post") else ""
+        parts.append(f"<tr><td class=\"n\">{k['day']}</td><td>{esc(k['name'])} #{k['piece']}{extra}</td><td class=\"n\">{esc(num(k['hours']))}</td></tr>")
     parts.append("</table></div>")
     for w in p["warnings"]:
         parts.append(f"<div class=\"note\">{esc(w)}</div>")
@@ -721,23 +829,26 @@ def cmd_template(a, cat):
                "current_formats": a.current or [], "platforms": a.platforms or []}
     if a.max_effort:
         creator["max_effort"] = a.max_effort
+    if a.test_hours:
+        creator["test_hours_per_week"] = a.test_hours
     for cid in creator["current_formats"]:
         if cid not in cat["_formats"]:
             fail(f"--current: unknown format {cid!r}")
     scan = {
         "niche": a.niche,
         "date": dt.date.today().isoformat(),
-        "sample": {"size": None, "queries": [], "platforms": a.platforms or [], "note": ""},
+        "sample": {"size": None, "queries": [], "platforms": a.platforms or [], "evidence": "", "note": ""},
         "creator": creator,
         "overrides": {},
         "entries": [{"format": f["id"], "layout": None, "count": None, "saturation": None,
-                     "basis": None, "evidence": ""}
+                     "basis": None, "evidence": "", "applicable": True}
                     for f in cat["formats"] if a.length in f["lengths"]],
     }
     text = json.dumps(scan, indent=2, ensure_ascii=False)
     if a.out:
         Path(a.out).write_text(text + "\n", encoding="utf-8")
-        out(f"wrote {a.out} with {len(scan['entries'])} entries. Fill in count (with sample.size) or saturation + basis + evidence.")
+        out(f"wrote {a.out} with {len(scan['entries'])} entries. Fill in sample.size + count per entry (or saturation), "
+            "basis, and sample.evidence; set applicable false (with a reason) for formats that can't fit this niche.")
     else:
         out(text)
 
@@ -765,6 +876,8 @@ def cmd_build(a, cat):
     if a.json:
         (d / "formatmap.json").write_text(json.dumps(res, indent=2, ensure_ascii=False), encoding="utf-8")
     out(md)
+    for w in res["check_warnings"]:
+        out(f"scan warning (not shown to the creator): {w}")
     out(f"wrote {d / 'formatmap.html'} and {d / 'formatmap.md'}")
 
 
@@ -789,6 +902,7 @@ def main(argv=None):
     s.add_argument("--faceless", action="store_true")
     s.add_argument("--hours", type=float, default=6, help="hours per week for content")
     s.add_argument("--max-effort", type=float)
+    s.add_argument("--test-hours", type=float, help="hours per week free for new formats (default: --hours)")
     s.add_argument("--current", nargs="*", help="format ids the creator makes now")
     s.add_argument("--platforms", nargs="*")
     s.add_argument("--out")
