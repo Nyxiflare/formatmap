@@ -28,13 +28,31 @@ Your job is the content of each piece and how the creator reads the results.
 Don't judge by raw views on 2 posts. A format "wins" when it beats the baseline on retention *and* on
 shares/saves per 1,000 views in both pieces.
 
-## After 14 days
+## After 14 days: feed the results back
 
-- Keep the 1–2 formats that beat the baseline and cost a sustainable number of hours.
-- Drop formats that lost on both signals.
-- For a format that was close, try the next premium upgrade from its checklist before dropping it.
-- Update the scan file (`current_formats`, `overrides.hours` with real hours) and re-run `build`:
-  the map gets more accurate each cycle.
+Have the creator fill in a results file from their own analytics (see
+`examples/ai-tools-faceless/results.json`): a `baseline` (median retention % and shares+saves per
+1,000 views over their last ~10 posts on that platform) and one entry per test piece with `format`,
+`layout`, `hours`, `views`, `retention`, `shares`, `saves`. Then:
+
+```
+FM analyse results.json --scan scan.json --scan-out scan-next.json
+```
+
+It judges each format against the baseline, never on raw views:
+
+| Verdict | Rule |
+|---|---|
+| Keep | ≥2 pieces, every judged piece beat the baseline on retention *and* shares+saves per 1,000 |
+| Promising | Only one judged piece, and it beat both: make one more |
+| Iterate | Beat the baseline on one signal: try the next premium upgrade from its checklist |
+| Drop | Lost on both |
+| Too few views | Under 200 views (`scoring.min_views_to_judge`): not judged |
+
+It also shows **shares+saves per production hour**, the return on effort. With `--scan`, it writes a
+*new* scan where measured hours become `overrides` and kept formats join `current_formats`. Re-scan
+the niche (saturation moves too), build again, and use `FM compare old.json new.json` to see what
+changed. Before calling a winner, check it didn't win on its topic alone.
 
 ## Piece briefs
 

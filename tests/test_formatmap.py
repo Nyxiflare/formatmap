@@ -155,7 +155,9 @@ class StatusTests(unittest.TestCase):
     def test_score_formula(self):
         r = self.status("data-visual", 2)
         w = CAT["scoring"]["weights"]
-        self.assertAlmostEqual(r["score"], round(w["premium"] * 8 + w["openness"] * 8 + w["ease"] * 4, 2))
+        d = CAT["scoring"]["demand"]["default"]
+        self.assertAlmostEqual(r["score"], round(w["premium"] * 8 + w["openness"] * 8 + w["demand"] * d + w["ease"] * 4, 2))
+        self.assertAlmostEqual(sum(w.values()), 1.0)
 
 
 class NewFieldTests(unittest.TestCase):
@@ -418,6 +420,239 @@ class OutputTests(unittest.TestCase):
         self.assertTrue(any(r["layout"] == "paper-to-glass" for r in res["recommendations"]))
         self.assertLessEqual(res["plan"]["total_hours"], res["plan"]["budget_hours"])
         self.assertFalse(re.search(r"\bviews?\b", json.dumps(res["rows"])))
+
+
+
+class DemandDiversityConfidenceTests(unittest.TestCase):
+    def test_demand_unknown_scores_as_neutral_default(self):
+        s = scan()
+        s["entries"] = [entry("data-visual", 2)]
+        a = fm.evaluate(s, CAT)[0]
+        s["entries"][0].update(demand=CAT["scoring"]["demand"]["default"], demand_basis="estimated", demand_evidence="x")
+        self.assertEqual(a["score"], fm.evaluate(s, CAT)[0]["score"])
+        self.assertIsNone(a["demand"])
+
+    def test_higher_demand_raises_score(self):
+        s = scan()
+        s["entries"] = [dict(entry("data-visual", 2), demand=9, demand_basis="observed", demand_evidence="4 outliers")]
+        hi = fm.evaluate(s, CAT)[0]["score"]
+        s["entries"][0]["demand"] = 4
+        self.assertGreater(hi, fm.evaluate(s, CAT)[0]["score"])
+
+    def test_supply_gap_with_weak_demand_is_not_open_or_recommended(self):
+        s = scan()
+        s["entries"] = [dict(entry("data-visual", 0), demand=2, demand_basis="observed", demand_evidence="nobody engages"),
+                        entry("case-study", 1), entry("whiteboard", 1), entry("text-on-broll", 9)]
+        res = fm.build_result(s, CAT)
+        rows = {r["format"]: r for r in res["rows"]}
+        self.assertEqual(rows["data-visual"]["status"], "weak-demand")
+        self.assertNotIn("data-visual", [r["format"] for r in res["recommendations"]])
+        self.assertIn("no sign viewers want it", fm.render_md(res))
+
+    def test_demand_needs_basis_and_evidence(self):
+        s = scan()
+        s["entries"] = [dict(entry("pov", 2), demand=7)]
+        self.assertTrue(any("demand_basis" in e for e in fm.validate_scan(s, CAT)[0]))
+        s["entries"][0].update(demand_basis="observed")
+        self.assertTrue(any("demand_evidence" in e for e in fm.validate_scan(s, CAT)[0]))
+        s["entries"][0].update(demand=11, demand_evidence="x")
+        self.assertTrue(any("demand must be 0-10" in e for e in fm.validate_scan(s, CAT)[0]))
+
+    def test_one_channel_cannot_fill_a_format(self):
+        s = scan()
+        s["entries"] = [entry("talking-head", count=30, basis="observed", evidence="x")]
+        crowded = fm.evaluate(s, CAT)[0]["saturation"]
+        s["entries"][0]["channels"] = 1
+        capped = fm.evaluate(s, CAT)[0]["saturation"]
+        cap = CAT["scoring"]["max_per_channel"]
+        self.assertEqual(capped, fm.saturation_from_share(cap / 100, CAT["scoring"]["saturation_bands"]))
+        self.assertLess(capped, crowded)
+        s["entries"][0]["channels"] = 31
+        self.assertTrue(fm.validate_scan(s, CAT)[0])
+
+    def test_low_confidence_ranks_after_confident(self):
+        s = scan()
+        s["entries"] = [dict(entry("data-visual", 1), confidence="low"), entry("whiteboard", 1)]
+        rows = fm.evaluate(s, CAT)
+        self.assertEqual(rows[0]["format"], "whiteboard")
+        res = fm.build_result(dict(s, entries=s["entries"] + [entry("case-study", 1)]), CAT)
+        dv = [r for r in res["recommendations"] if r["format"] == "data-visual"]
+        if dv:
+            self.assertIn("uncertain", dv[0]["why"])
+        s["entries"][0]["confidence"] = "sure"
+        self.assertTrue(fm.validate_scan(s, CAT)[0])
+
+    def test_coverage_and_channel_diversity_warnings(self):
+        s = scan()
+        s["sample"] = {"size": 50, "unclassified": 25, "channels": 4, "evidence": "x"}
+        s["entries"] = [entry("pov", count=5, basis="observed"), entry("data-visual", 1)]
+        res = fm.build_result(s, CAT)
+        text = " ".join(res["warnings"])
+        self.assertIn("50% of the sample", text)
+        self.assertIn("only 4 channels", text)
+        self.assertEqual(res["bases"]["coverage"], 0.5)
+        self.assertIn("50% classified", fm.render_md(res))
+
+
+class EdgeCaseTests(unittest.TestCase):
+    """Scenarios from the external review."""
+
+    def test_empty_and_incomplete_input(self):
+        self.assertTrue(fm.validate_scan({}, CAT)[0])
+        self.assertTrue(fm.validate_scan([], CAT)[0])
+        s = scan()
+        self.assertTrue(any("entries" in e for e in fm.validate_scan(s, CAT)[0]))
+        with tempfile.TemporaryDirectory() as d:
+            p = Path(d) / "bad.json"
+            p.write_text("{not json", encoding="utf-8")
+            with self.assertRaises(SystemExit) as e:
+                run("check", str(p))
+            self.assertIn("not valid JSON", str(e.exception))
+
+    def test_no_saturation_evidence_at_all(self):
+        s = scan()
+        s["entries"] = [entry(f["id"]) for f in CAT["formats"] if "short" in f["lengths"]]
+        res = fm.build_result(s, CAT)
+        self.assertTrue(all(r["status"] in ("unknown", "blocked", "n/a") for r in res["rows"]))
+        self.assertEqual(res["recommendations"], [])
+        self.assertTrue(any("qualify" in w for w in res["warnings"]))
+
+    def test_everything_above_max_effort(self):
+        s = scan(max_effort=1)
+        s["entries"] = [entry("data-visual", 1), entry("vox-collage", 0), entry("case-study", 2)]
+        res = fm.build_result(s, CAT)
+        self.assertTrue(all(r["status"] == "stretch" for r in res["rows"]))
+        self.assertFalse(any(r["status"] == "open" for r in res["recommendations"]))
+
+    def test_two_hours_a_week(self):
+        s = scan(hours_per_week=2)
+        s["entries"] = [entry("text-on-broll", 9), entry("carousel", 1), entry("case-study", 1),
+                        entry("data-visual", 0), entry("storytime", 2)]
+        s["creator"]["current_formats"] = ["text-on-broll"]
+        res = fm.build_result(s, CAT)
+        p = res["plan"]
+        self.assertTrue(p["total_hours"] <= p["budget_hours"] or p["warnings"])
+        self.assertNotIn("data-visual", [r["format"] for r in res["recommendations"]])  # 5h a piece
+
+    def test_popular_but_unsuitable_format(self):
+        s = scan(faceless=True)
+        s["entries"] = [entry("talking-head", 1)]  # open-looking, but needs a face
+        self.assertEqual(fm.evaluate(s, CAT)[0]["status"], "blocked")
+
+    def test_missing_platforms_means_no_platform_filter(self):
+        s = scan()
+        s["creator"].pop("platforms", None)
+        s["entries"] = [entry("carousel", 1)]
+        self.assertNotEqual(fm.evaluate(s, CAT)[0]["status"], "n/a")
+
+    def test_invalid_overrides(self):
+        s = scan()
+        s["entries"] = [entry("pov", 2)]
+        s["overrides"] = {"nope": {"effort": 2}, "pov": {"effort": 0}}
+        errs = " | ".join(fm.validate_scan(s, CAT)[0])
+        self.assertIn("unknown format 'nope'", errs)
+        self.assertIn("overrides.pov.effort", errs)
+
+    def test_deterministic_output(self):
+        s = json.loads(EXAMPLE.read_text(encoding="utf-8"))
+        a = fm.build_result(copy.deepcopy(s), CAT)
+        b = fm.build_result(copy.deepcopy(s), CAT)
+        self.assertEqual(json.dumps(a, sort_keys=True), json.dumps(b, sort_keys=True))
+        self.assertEqual(fm.render_html(a), fm.render_html(b))
+        s2 = copy.deepcopy(s)
+        s2["entries"].reverse()  # entry order must not change the result
+        c = fm.build_result(s2, CAT)
+        self.assertEqual([r["format"] for r in a["recommendations"]], [r["format"] for r in c["recommendations"]])
+        self.assertEqual(a["plan"]["calendar"], c["plan"]["calendar"])
+
+
+RESULTS = ROOT / "examples" / "ai-tools-faceless" / "results.json"
+
+
+class AnalyseTests(unittest.TestCase):
+    def base(self, **kw):
+        r = {"baseline": {"retention": 40, "engaged_per_1k": 10}, "pieces": []}
+        r.update(kw)
+        return r
+
+    def piece(self, fid, views=1000, retention=50, shares=10, saves=10, hours=2, layout=None):
+        return {"format": fid, "layout": layout, "views": views, "retention": retention,
+                "shares": shares, "saves": saves, "hours": hours}
+
+    def verdict(self, *pieces):
+        a = fm.analyse_results(self.base(pieces=list(pieces)), CAT)
+        return a["formats"][0]["verdict"]
+
+    def test_verdicts(self):
+        self.assertEqual(self.verdict(self.piece("pov"), self.piece("pov")), "keep")
+        self.assertEqual(self.verdict(self.piece("pov")), "promising")
+        self.assertEqual(self.verdict(self.piece("pov"), self.piece("pov", retention=30)), "iterate")
+        self.assertEqual(self.verdict(self.piece("pov", retention=30, shares=1, saves=1)), "drop")
+        self.assertEqual(self.verdict(self.piece("pov", views=50)), "too-early")
+
+    def test_raw_views_do_not_decide(self):
+        """12,000 views with weak retention and engagement must not beat a smaller, stronger piece."""
+        a = fm.analyse_results(self.base(pieces=[
+            self.piece("data-visual", views=12000, retention=30, shares=20, saves=20),
+            self.piece("data-visual", views=11000, retention=31, shares=20, saves=20),
+            self.piece("case-study", views=800, retention=55, shares=10, saves=10),
+            self.piece("case-study", views=900, retention=52, shares=10, saves=10)]), CAT)
+        v = {r["format"]: r["verdict"] for r in a["formats"]}
+        self.assertEqual(v["case-study"], "keep")
+        self.assertEqual(v["data-visual"], "drop")
+        self.assertEqual(a["formats"][0]["format"], "case-study")
+
+    def test_roi_uses_hours(self):
+        a = fm.analyse_results(self.base(pieces=[self.piece("pov", hours=1), self.piece("data-visual", hours=10)]), CAT)
+        roi = {r["format"]: r["engaged_per_hour"] for r in a["formats"]}
+        self.assertEqual(roi["pov"], 20)
+        self.assertEqual(roi["data-visual"], 2)
+
+    def test_validation(self):
+        with self.assertRaises(SystemExit):
+            fm.analyse_results({"pieces": [self.piece("pov")]}, CAT)
+        with self.assertRaises(SystemExit):
+            fm.analyse_results(self.base(pieces=[dict(self.piece("pov"), retention=140)]), CAT)
+        with self.assertRaises(SystemExit):
+            fm.analyse_results(self.base(pieces=[dict(self.piece("pov"), views=None)]), CAT)
+
+    def test_learning_updates_a_copy_of_the_scan(self):
+        s = json.loads(EXAMPLE.read_text(encoding="utf-8"))
+        a = fm.analyse_results(json.loads(RESULTS.read_text(encoding="utf-8")), CAT)
+        new = fm.apply_results_to_scan(s, a, "2026-12-06")
+        self.assertEqual(new["overrides"]["data-visual"]["hours"], 5.5)
+        self.assertIn("data-visual", new["creator"]["current_formats"])
+        self.assertNotIn("data-visual", s["creator"]["current_formats"])  # original untouched
+        self.assertNotIn("faceless-explainer", new["overrides"])  # layout pieces don't set base hours
+        self.assertEqual(fm.validate_scan(new, CAT)[0], [])
+
+    def test_cli_analyse_and_scan_out(self):
+        with tempfile.TemporaryDirectory() as d:
+            out_scan = Path(d) / "scan2.json"
+            text = run("analyse", str(RESULTS), "--scan", str(EXAMPLE), "--scan-out", str(out_scan), "--date", "2026-12-06")
+            self.assertIn("Keep", text)
+            self.assertTrue(out_scan.exists())
+            with self.assertRaises(SystemExit):
+                run("analyse", str(RESULTS), "--scan", str(EXAMPLE))
+
+
+class CompareTests(unittest.TestCase):
+    def test_compare_reports_changes_only(self):
+        old = scan()
+        old["entries"] = [entry("data-visual", 1), entry("pov", 3), entry("talking-head", 5)]
+        new = copy.deepcopy(old)
+        new["date"] = "2026-12-22"
+        new["entries"][0]["saturation"] = 6
+        new["entries"].append(entry("case-study", 2))
+        rows = fm.compare_scans(old, new, CAT)
+        names = [r["name"] for r in rows]
+        self.assertEqual(names[0], "Data visual / animated chart")
+        self.assertEqual(rows[0]["change"], 5)
+        self.assertIn("Case study breakdown", names)
+        self.assertNotIn("POV", names)
+        md = fm.render_compare_md(rows, old, new)
+        self.assertIn("Open →", md)
+        self.assertIn("No format changed", fm.render_compare_md([], old, old))
 
 
 if __name__ == "__main__":

@@ -35,7 +35,9 @@ Try these, and say in `sample.evidence` which ones worked:
    search / For You page for one query. That is real observation (`basis: "user"`) and beats memory.
 
 Aim for the **top ~20 results per query**, 40–100 unique items in total (drop duplicates across
-queries).
+queries). Record `sample.channels` (how many distinct channels the items came from) and
+`sample.unclassified` (items that fit no format). The build warns when fewer than 8 channels make up
+the sample or under 70% of it could be classified.
 
 ## 3. Classify each item into one format
 
@@ -53,7 +55,8 @@ Pick the format that **carries the content**, using title + thumbnail at minimum
 | Before and after of the same thing | `before-after` |
 
 Captions on top of a tutorial don't make it `text-on-broll`; note "caption-heavy" as a layout if it
-matters. Items that fit no format: keep them in `sample.size`, leave them unassigned, and say how many
+matters. When a format's items were hard to call, add `"confidence": "low"` (or `"high"` when it's
+clear-cut): low-confidence entries rank after confident ones and recommendations say so. Items that fit no format: keep them in `sample.size`, leave them unassigned, and say how many
 in `sample.note`. Title + thumbnail is enough for `observed`; say if you watched any.
 
 ## 4. Turn the tally into saturation
@@ -75,6 +78,10 @@ Give the script the tally and it derives saturation from the share of the sample
 | up to 45% | 8 |
 | up to 60% | 9 |
 | over 60% | 10 |
+
+**One channel can't fill a format.** Add `"channels": N` (distinct channels among that format's
+`count`) and the script counts at most 3 items per channel (`scoring.max_per_channel`), so one
+prolific creator doesn't make a format look crowded.
 
 To nudge a tally-based number, add `"adjust": 1` (items in that format all look the same) or
 `"adjust": -1` (they're all poor quality), and say why in `evidence`. Never more than ±1.
@@ -106,6 +113,37 @@ surface there even when they exist. Leave them in, but say so when you recommend
 | *(no saturation)* | You genuinely can't tell | leave `saturation` null: the map shows it as unknown and never marks it open |
 
 The script refuses `observed` or `user` entries without evidence.
+
+## 7. Demand: is there any sign viewers want it?
+
+Saturation measures **supply**. A gap can be empty because nobody has tried it, or because viewers
+don't respond to it. Demand is a separate, optional 0–10 per entry:
+
+```json
+{"format": "data-visual", "count": 0, "basis": "observed",
+ "demand": 7, "demand_basis": "observed",
+ "demand_evidence": "In the adjacent 'small business finance' niche, 3 of the 5 data-visual Shorts in the sample showed far more views than the rest of their channel's results (read on the results page, 22 Nov)"}
+```
+
+Evidence that counts, strongest first:
+1. **The creator's own past posts** in that format vs. their own median (`demand_basis: "user"`).
+2. **Outliers in the sample:** items in that format clearly beating the other results from the same
+   channel. Only use numbers you read on a page in this session, and describe them relatively
+   ("about 5× its channel's other results") rather than as a list of view counts.
+3. **The audience asking:** comments or search suggestions asking for it ("can you make a chart of…").
+4. **A close niche:** the format working for a neighbouring audience. A format with 0 items in this
+   niche can only get demand evidence from here or from comments.
+
+| Demand | Meaning |
+|---|---|
+| 0–3 | Looked and found signs viewers don't respond (it was tried and ignored) |
+| 4–6 | Mixed, or a weak sign either way |
+| 7–10 | Clear signs viewers respond (outliers, requests, works next door) |
+
+Leave `demand` out when you haven't checked: it is then scored as the neutral default (5) and the
+recommendation says "demand not checked". An otherwise open format with demand 0–3 becomes
+**"Gap, but no sign viewers want it"** and is not recommended. `demand_basis` follows the same rules
+as `basis`; observed/user demand needs `demand_evidence`.
 
 ## Honesty rules
 

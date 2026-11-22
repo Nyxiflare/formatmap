@@ -10,11 +10,13 @@ formats that break out next are the ones that *feel premium* and that *nobody in
 well yet*. FormatMap finds those cells for one specific creator: their niche, their time, whether
 they show their face.
 
-Three numbers per format:
+Four numbers per format:
 - **Effort** (1–10, production cost) and **premium** (1–10, how premium it feels to a viewer) come
   from `references/catalogue.json`. They are editable starting ratings, not measurements.
-- **Saturation** (0–10) is about this niche and comes from your scan. It's the number to be most
-  honest about.
+- **Saturation** (0–10, supply) is about this niche and comes from your scan. It's the number to be
+  most honest about.
+- **Demand** (0–10, optional) is evidence that viewers respond to the format. A gap with no demand
+  may be empty for a reason. Unchecked demand is scored as neutral and labelled "not checked".
 
 The judgement (what the niche is full of, what each piece says) is yours. Scoring, the grid, the HTML
 heat map, the upgrade checklists and the test-plan sizing go through `scripts/formatmap.py`, so they
@@ -31,6 +33,8 @@ user's working folder (outputs go to `./formatmap-out/`). Below, `FM` stands for
 | `FM template --niche "..." [--length short] [--faceless] --hours 8 [--max-effort 7] --current ID ... --out scan.json` | Start a scan file with every format for that length |
 | `FM check scan.json` | Validate the scan before building |
 | `FM build scan.json [--top 4] [--out-dir formatmap-out]` | Score, map, recommend, plan → `formatmap.html` + `formatmap.md` |
+| `FM analyse results.json [--scan scan.json --scan-out next.json]` | After the test: judge each format against the creator's own baseline, and learn measured hours into a new scan |
+| `FM compare old-scan.json new-scan.json` | What changed in the niche between two scans |
 
 ## Steps
 
@@ -78,6 +82,12 @@ Honesty rules, non-negotiable:
   search/For You page for one query to firm it up. Leave a format's saturation null when you
   genuinely can't tell; the map shows it as unknown and never calls it open.
 - To nudge a counted saturation, use `"adjust": 1` or `-1` with the reason in `evidence`.
+- Record `channels` per entry (distinct channels behind the count) so one prolific channel can't
+  make a format look crowded, `confidence: "low"` where classification was hard, and
+  `sample.channels` / `sample.unclassified` for the whole sample.
+- **Check demand for the formats you're likely to recommend** (niche-scan.md §7): the creator's own
+  past posts, outliers in the sample, audience requests, or a close niche. Don't check all 29;
+  check the top open cells. Never turn view counts into invented numbers.
 - Use `overrides` (with a `reason`) to adjust effort/hours for this creator's real skills. Don't
   raise premium to make a favourite format win.
 
@@ -93,6 +103,7 @@ the creator; they never appear in the report.
 | **Open** | Premium ≥ 6, saturation ≤ 4, within the creator's hours and max effort. The targets. |
 | **Open, over capacity** | Same, but too slow for their time right now (a later goal, or lower effort via a template) |
 | **Easy but crowded: upgrade it** | Effort ≤ 4, saturation ≥ 6. Only works with premium execution |
+| **Gap, but no sign viewers want it** | Would be open, but demand evidence is 0–3. Not recommended |
 | **Crowded** | Saturation ≥ 7 and not easy |
 | **Neutral** | Middle of the map |
 | **Unknown** | No saturation data. Never recommended as open |
@@ -135,6 +146,12 @@ If a strong open format didn't fit the hours, name it as the next step ("with 2 
 add data visuals"). If a piece got only one slot, say so plainly. If the user
 disagrees with a pick, change the scan (or an override) and rebuild rather than overruling the map in
 prose.
+
+### 6. After the test
+
+When the creator comes back with results, follow `references/test-plan.md` → "After 14 days": a
+results file with their own baseline, `FM analyse`, then a re-scan and `FM compare`. Never judge a
+format on raw views, and say when a piece had too few views to count.
 
 ## Output format
 

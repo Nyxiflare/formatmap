@@ -4,10 +4,15 @@
   "scale": {
     "effort": "1 = phone, one take, no edit; 3 = a light edit and captions; 5 = scripting, several shots, a real edit; 7 = animation or a shoot day; 10 = a team for weeks",
     "premium": "1 = reads as copy-paste; 3 = ordinary feed content; 5 = clearly made with care; 7 = looks like a media brand; 10 = looks like a studio production",
-    "saturation": "0-10, how much of what this niche's audience is shown already uses the format. See references/niche-scan.md for the bands."
+    "saturation": "0-10, how much of what this niche's audience is shown already uses the format. See references/niche-scan.md for the bands.",
+    "demand": "0-10, evidence that viewers respond to the format (in this niche or a close one). Unknown = scored as the neutral default. See references/niche-scan.md section 7."
   },
   "scoring": {
-    "weights": {"premium": 0.45, "openness": 0.40, "ease": 0.15},
+    "weights": {"premium": 0.35, "openness": 0.30, "demand": 0.20, "ease": 0.15},
+    "demand": {"default": 5, "weak_max": 3},
+    "max_per_channel": 3,
+    "min_coverage": 0.7,
+    "min_channels": 8,
     "open": {"min_premium": 6, "max_saturation": 4},
     "crowded": {"min_saturation": 7},
     "upgrade": {"max_effort": 4, "min_saturation": 6},
@@ -29,7 +34,8 @@
     "upgrade_hours_factor": 1.5,
     "layout_hours_per_effort": 0.25,
     "fill_min_premium": 4,
-    "upgrade_min_extra_hours": 1
+    "upgrade_min_extra_hours": 1,
+    "min_views_to_judge": 200
   },
   "formats": [
     {

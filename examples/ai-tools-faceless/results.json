@@ -1,0 +1,72 @@
+{
+  "about": "ILLUSTRATIVE numbers for the README example. Fill in from your own analytics (YouTube Studio / TikTok / Instagram insights).",
+  "baseline": {
+    "retention": 38,
+    "engaged_per_1k": 9,
+    "source": "median of my last 10 Shorts"
+  },
+  "pieces": [
+    {
+      "format": "text-on-broll",
+      "title": "3 AI tools that answer your emails (own footage)",
+      "hours": 1.5,
+      "views": 2400,
+      "retention": 44,
+      "shares": 18,
+      "saves": 21,
+      "follows": 6
+    },
+    {
+      "format": "text-on-broll",
+      "title": "Stop writing invoices by hand",
+      "hours": 1.5,
+      "views": 1800,
+      "retention": 41,
+      "shares": 9,
+      "saves": 12,
+      "follows": 3
+    },
+    {
+      "format": "data-visual",
+      "title": "How much time small shops lose to admin",
+      "hours": 6,
+      "views": 3100,
+      "retention": 52,
+      "shares": 31,
+      "saves": 40,
+      "follows": 14
+    },
+    {
+      "format": "data-visual",
+      "title": "What AI actually costs a 5-person team",
+      "hours": 5,
+      "views": 950,
+      "retention": 47,
+      "shares": 6,
+      "saves": 9,
+      "follows": 2
+    },
+    {
+      "format": "faceless-explainer",
+      "layout": "paper-to-glass",
+      "title": "Your inbox, before and after",
+      "hours": 4,
+      "views": 1400,
+      "retention": 35,
+      "shares": 11,
+      "saves": 15,
+      "follows": 4
+    },
+    {
+      "format": "faceless-explainer",
+      "layout": "paper-to-glass",
+      "title": "Why your CRM is a mess",
+      "hours": 3.5,
+      "views": 160,
+      "retention": 30,
+      "shares": 1,
+      "saves": 1,
+      "follows": 0
+    }
+  ]
+}

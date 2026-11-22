@@ -25,10 +25,12 @@ Result for the [illustrative example](examples/ai-tools-faceless/) (made-up tall
 - **Catalogue of 29 formats and 12 visual layouts** (talking head, green screen, text on B-roll, carousel, POV, tutorial, listicle, storytime, faceless explainer, Vox-style collage, screen recording, skit, street interview, mini-doc, data visual, clean UI demo, whiteboard, case study, reviews…), each with effort, premium, typical hours, a definition, examples and an upgrade checklist.
 - **Format + layout combinations:** e.g. a faceless explainer in a *Paper → Glass* layout (problem in paper collage, solution in clean glass UI) is scored as its own cell.
 - **Niche scan:** Claude samples what your audience is shown (search results, competitor channels, your pasted feed), tallies formats, and the script turns the tally into a 0–10 saturation score.
-- **Honest about evidence:** every saturation is labelled *observed*, *from you* or *estimated*; observed values need evidence; unknown formats are never called open; and **it never invents view counts**.
+- **Supply and demand, separately:** saturation says how crowded a format is; an optional demand score says whether there's any sign viewers respond to it (your own past posts, outliers, audience requests, a neighbouring niche). A gap with no demand is flagged, not recommended.
+- **Honest about evidence:** every number is labelled *observed*, *from you* or *estimated*; observed values need evidence; one prolific channel can't make a format look crowded; uncertain classifications are marked; sample coverage and channel diversity are reported; unknown formats are never called open; and **it never invents view counts**.
 - **Sized to you:** hours per week, max effort, faceless or not, short or long form, your platforms. Face-only formats are blocked for faceless creators; formats that aren't native to your platforms or can't fit your niche are left out (with the reason shown), so "nobody does it" never gets mistaken for "open".
 - **Premium upgrades:** for the easy formats you already make, a concrete polish / insight / novelty / detail checklist, so easy formats keep working.
 - **3–5 formats to test** and a 2-week calendar that fits your hours: one premium upgrade of what you already make, then the best open cells, never padded with filler. Honest warnings when the hours are tight.
+- **Learns from your test:** `analyse` judges each format against *your own* baseline (retention and shares+saves per 1,000 views, never raw views), shows the return per production hour, and writes an updated scan with your real hours. `compare` shows how the niche moved between two scans.
 - **Editable ratings:** every rating, threshold and weight lives in [`references/catalogue.json`](references/catalogue.json). Change a number, rebuild the map. Per-creator `overrides` for your real skills.
 
 ## Install
@@ -47,6 +49,7 @@ Just talk to Claude:
 - *"My reels aren't working anymore. Here's my profile: …"*
 - *"Map the formats in the home-coffee niche on TikTok."*
 - *"How do I make my talking-head videos feel more premium?"*
+- *"My 2-week test is done, here are my numbers. What should I keep?"*
 
 You get `formatmap-out/formatmap.html` (open it in any browser, works offline) and the same map as a table in chat.
 

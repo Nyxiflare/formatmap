@@ -15,6 +15,9 @@ Commands
   check SCAN.json                                        validate a scan file
   build SCAN.json [--out-dir DIR] [--top N]              score, map, recommend, plan; writes
                                                          DIR/formatmap.html and DIR/formatmap.md
+  analyse RESULTS.json [--scan S --scan-out S2]          judge the test against your own baseline;
+                                                         optionally learn measured hours into a new scan
+  compare OLD.json NEW.json                              what changed between two scans of a niche
 
 Standard library only. No network requests: the HTML is fully self-contained.
 """
@@ -34,11 +37,13 @@ DEFAULT_CATALOGUE = HERE.parent / "references" / "catalogue.json"
 LENGTHS = ("short", "long")
 FACE = ("required", "optional", "none")
 BASES = ("observed", "user", "estimated")
-STATUSES = ("open", "stretch", "upgrade", "crowded", "neutral", "unknown", "blocked", "n/a")
+CONFIDENCE = ("high", "medium", "low")
+STATUSES = ("open", "stretch", "upgrade", "weak-demand", "crowded", "neutral", "unknown", "blocked", "n/a")
 STATUS_LABEL = {
     "open": "Open",
     "stretch": "Open, over capacity",
     "upgrade": "Easy but crowded: upgrade it",
+    "weak-demand": "Gap, but no sign viewers want it",
     "crowded": "Crowded",
     "neutral": "Neutral",
     "unknown": "Unknown saturation",
@@ -46,7 +51,11 @@ STATUS_LABEL = {
     "n/a": "Not this length",
 }
 SCORING_DEFAULTS = {
-    "weights": {"premium": 0.45, "openness": 0.40, "ease": 0.15},
+    "weights": {"premium": 0.35, "openness": 0.30, "demand": 0.20, "ease": 0.15},
+    "demand": {"default": 5, "weak_max": 3},
+    "max_per_channel": 3,
+    "min_coverage": 0.7,
+    "min_channels": 8,
     "open": {"min_premium": 6, "max_saturation": 4},
     "crowded": {"min_saturation": 7},
     "upgrade": {"max_effort": 4, "min_saturation": 6},
@@ -57,6 +66,7 @@ SCORING_DEFAULTS = {
     "layout_hours_per_effort": 0.25,
     "fill_min_premium": 4,
     "upgrade_min_extra_hours": 1,
+    "min_views_to_judge": 200,
 }
 
 
@@ -222,6 +232,10 @@ def validate_scan(scan: dict, cat: dict) -> tuple[list, list]:
         errors.append("sample.size must be a positive whole number")
         size = None
     shared_evidence = str(sample.get("evidence") or "").strip()
+    for k in ("unclassified", "channels"):
+        v = sample.get(k)
+        if v is not None and (not isinstance(v, int) or v < 0 or (size and v > size)):
+            errors.append(f"sample.{k} must be a whole number between 0 and sample.size")
     entries = scan.get("entries")
     if not isinstance(entries, list) or not entries:
         errors.append("'entries' must be a non-empty list")
@@ -267,6 +281,28 @@ def validate_scan(scan: dict, cat: dict) -> tuple[list, list]:
                 counted += cnt
             if sat is not None:
                 warnings.append(f"{tag}: both count and saturation given; the count wins (use 'adjust' to nudge it)")
+        ch = e.get("channels")
+        if ch is not None:
+            if not isinstance(ch, int) or ch < 1:
+                errors.append(f"{tag}: channels must be a whole number >= 1")
+            elif isinstance(cnt, int) and ch > cnt:
+                errors.append(f"{tag}: channels ({ch}) can't be more than count ({cnt})")
+            elif cnt is None:
+                errors.append(f"{tag}: channels needs a count")
+        conf = e.get("confidence")
+        if conf is not None and conf not in CONFIDENCE:
+            errors.append(f"{tag}: confidence must be one of {', '.join(CONFIDENCE)}")
+        dem = e.get("demand")
+        if dem is not None:
+            if not isinstance(dem, (int, float)) or not 0 <= dem <= 10:
+                errors.append(f"{tag}: demand must be 0-10 or null")
+            if e.get("demand_basis") not in BASES:
+                errors.append(f"{tag}: demand_basis must be one of {', '.join(BASES)}")
+            elif not str(e.get("demand_evidence") or "").strip():
+                if e.get("demand_basis") in ("observed", "user"):
+                    errors.append(f"{tag}: demand_basis '{e['demand_basis']}' needs demand_evidence")
+                else:
+                    warnings.append(f"{tag}: estimated demand with no reason")
         basis = e.get("basis")
         if (sat is not None or cnt is not None) and basis not in BASES:
             errors.append(f"{tag}: basis must be one of {', '.join(BASES)}")
@@ -295,13 +331,15 @@ def resolved_format(cat: dict, scan: dict, fid: str) -> dict:
     return f
 
 
-STATUS_RANK = {"open": 0, "upgrade": 1, "stretch": 2, "neutral": 3, "crowded": 4, "unknown": 5, "blocked": 6, "n/a": 7}
+STATUS_RANK = {"open": 0, "upgrade": 1, "stretch": 2, "neutral": 3, "weak-demand": 4, "crowded": 5, "unknown": 6,
+               "blocked": 7, "n/a": 8}
 
 
 def sort_rows(rows: list[dict]) -> list[dict]:
     """Actionable first (open, upgrade, stretch...). Within a status, observed evidence before
     estimates, then by score."""
     return sorted(rows, key=lambda r: (STATUS_RANK[r["status"]], r["basis"] == "estimated",
+                                       r.get("confidence") == "low",
                                        -(r["score"] if r["score"] is not None else -1), r["name"]))
 
 
@@ -332,7 +370,10 @@ def evaluate(scan: dict, cat: dict) -> list[dict]:
         if base_hours is not None:
             hours = round(base_hours * (1 + sc["layout_hours_per_effort"] * max(ea, 0)), 2)
         if e.get("count") is not None and size:
-            share = e["count"] / size
+            eff = e["count"]
+            if e.get("channels"):
+                eff = min(eff, e["channels"] * int(sc["max_per_channel"]))  # one channel can't fill a format
+            share = eff / size
             sat = saturation_from_share(share, sc["saturation_bands"])
         else:
             share = None
@@ -343,6 +384,7 @@ def evaluate(scan: dict, cat: dict) -> list[dict]:
         if platforms and f.get("platforms"):
             native = [p for p in platforms if any(p.startswith(norm_platform(fp)) for fp in f["platforms"])]
         within = hours is not None and effort <= max_effort and hours <= hpw
+        demand = e.get("demand")
         reason = ""
         if e.get("applicable", True) is False:
             status, reason = "n/a", str(e.get("reason") or "not relevant to this niche")
@@ -355,7 +397,10 @@ def evaluate(scan: dict, cat: dict) -> list[dict]:
         elif sat is None:
             status = "unknown"
         elif premium >= sc["open"]["min_premium"] and sat <= sc["open"]["max_saturation"]:
-            status = "open" if within else "stretch"
+            if demand is not None and demand <= sc["demand"]["weak_max"]:
+                status = "weak-demand"
+            else:
+                status = "open" if within else "stretch"
         elif effort <= sc["upgrade"]["max_effort"] and sat >= sc["upgrade"]["min_saturation"]:
             status = "upgrade"
         elif sat >= sc["crowded"]["min_saturation"]:
@@ -364,7 +409,9 @@ def evaluate(scan: dict, cat: dict) -> list[dict]:
             status = "neutral"
         score = None
         if sat is not None and status != "n/a":
-            score = round(w["premium"] * premium + w["openness"] * (10 - sat) + w["ease"] * (10 - effort), 2)
+            d = demand if demand is not None else sc["demand"]["default"]
+            score = round(w["premium"] * premium + w["openness"] * (10 - sat) + w.get("demand", 0) * d
+                          + w["ease"] * (10 - effort), 2)
         platform_note = ""
         if platforms and native and len(native) < len(platforms):
             platform_note = "only on " + ", ".join(native)
@@ -378,6 +425,9 @@ def evaluate(scan: dict, cat: dict) -> list[dict]:
             "evidence": evidence, "shared_evidence": not evidence and e.get("basis") in ("observed", "user") and bool(shared_evidence),
             "face": f["face"], "within_capacity": within, "status": status, "reason": reason,
             "platform_note": platform_note, "score": score,
+            "demand": demand, "demand_basis": e.get("demand_basis") if demand is not None else None,
+            "demand_evidence": str(e.get("demand_evidence") or "").strip(),
+            "channels": e.get("channels"), "confidence": e.get("confidence"),
             "current": f["id"] in current, "overridden": f["_overridden"],
         })
     return sort_rows(rows)
@@ -399,6 +449,19 @@ WHY = {
     "upgrade-current": "you already make it and it's crowded: test one premium upgrade in place of a usual post",
     "neutral": "middle of the map: added only to reach three formats within your hours",
 }
+
+
+def caveats(r: dict) -> str:
+    notes = []
+    if r["status"] == "open" and r.get("demand") is None:
+        notes.append("demand not checked")
+    elif r.get("demand") is not None:
+        notes.append(f"demand {num(r['demand'])}/10 ({r['demand_basis']})")
+    if r.get("confidence") == "low":
+        notes.append("format classification uncertain")
+    if r.get("basis") == "estimated":
+        notes.append("saturation estimated")
+    return (" · " + ", ".join(notes)) if notes else ""
 
 
 def recommend(rows: list[dict], top: int, budget: float | None = None, sc: dict | None = None) -> list[dict]:
@@ -442,7 +505,7 @@ def recommend(rows: list[dict], top: int, budget: float | None = None, sc: dict 
                 continue
             used.add(r["format"])
             spent[0] += cost
-            picked.append({**r, "why": WHY[why]})
+            picked.append({**r, "why": WHY[why] + caveats(r)})
 
     per = int(sc["test_pieces_per_format"])
     run(main, top, per)  # first: formats that get a full test
@@ -456,7 +519,7 @@ def recommend(rows: list[dict], top: int, budget: float | None = None, sc: dict 
                 rest[r["format"]] = (r, why)
         for r, why in sorted(rest.values(), key=lambda x: test_cost(x[0], sc, 1))[: 3 - len(picked)]:
             used.add(r["format"])
-            picked.append({**r, "why": WHY[why]})
+            picked.append({**r, "why": WHY[why] + caveats(r)})
     return picked
 
 
@@ -534,6 +597,16 @@ def build_result(scan: dict, cat: dict, top: int = 4) -> dict:
     live = [r for r in rows if r["status"] != "n/a"]
     bases = {b: sum(1 for r in live if r["basis"] == b) for b in BASES}
     bases["unknown"] = sum(1 for r in live if r["saturation"] is None)
+    bases["demand"] = sum(1 for r in live if r.get("demand") is not None)
+    sample = scan.get("sample") or {}
+    coverage = None
+    if sample.get("size") and sample.get("unclassified") is not None:
+        coverage = round(1 - sample["unclassified"] / sample["size"], 3)
+        if coverage < sc["min_coverage"]:
+            warnings.append(f"only {round(coverage * 100)}% of the sample fitted a format; the map may miss what this niche really posts")
+    if sample.get("size") and sample.get("channels") is not None and sample["channels"] < sc["min_channels"]:
+        warnings.append(f"the sample comes from only {sample['channels']} channels; a few creators may be setting the picture")
+    bases["coverage"] = coverage
     picked = {r["format"] for r in recs}
     if len(recs) < 3:
         warnings.append(f"only {len(recs)} format(s) qualify; fill in more saturation values or relax max_effort")
@@ -599,22 +672,30 @@ def render_md(res: dict) -> str:
              + (f" · max effort {num(c['max_effort'])}" if c.get("max_effort") else ""))
     b = res["bases"]
     L.append(f"Saturation basis: {b['observed']} observed, {b['user']} from you, {b['estimated']} estimated, "
-             f"{b['unknown']} unknown" + (f" · sample of {res['sample']['size']}" if res["sample"].get("size") else ""))
+             f"{b['unknown']} unknown" + (f" · sample of {res['sample']['size']}" if res["sample"].get("size") else "")
+             + (f" from {res['sample']['channels']} channels" if res["sample"].get("channels") is not None else "")
+             + (f" · {round(b['coverage'] * 100)}% classified" if b.get("coverage") is not None else "")
+             + f" · demand checked for {b['demand']}")
     if res["sample"].get("evidence"):
         L.append(f"Sample: {res['sample']['evidence']}")
     L.append("")
-    L += ["| # | Format | Effort | Premium | Saturation | Basis | Hours | Score | Status |",
-          "|---|---|---|---|---|---|---|---|---|"]
+    L += ["| # | Format | Effort | Premium | Saturation | Basis | Demand | Hours | Score | Status |",
+          "|---|---|---|---|---|---|---|---|---|---|"]
     rec_keys = {(r["format"], r["layout"]) for r in res["recommendations"]}
     for i, r in enumerate([r for r in res["rows"] if r["status"] != "n/a"], 1):
         star = " ★" if (r["format"], r["layout"]) in rec_keys else ""
         sat = num(r["saturation"]) + (f" ({r['count']}/{res['sample'].get('size')})" if r["count"] is not None else "")
         if r.get("adjust"):
             sat += f" {r['adjust']:+}"
+        if r.get("channels"):
+            sat += f", {r['channels']} ch"
+        dem = "-" if r.get("demand") is None else f"{num(r['demand'])} ({r['demand_basis']})"
+        name = r["name"] + (" (?)" if r.get("confidence") == "low" else "")
         note = f" ({r['platform_note']})" if r.get("platform_note") else ""
-        L.append(f"| {i} | {r['name']}{star} | {num(r['effort'])} | {num(r['premium'])} | {sat} | "
-                 f"{r['basis'] or '-'} | {num(r['hours'])} | {num(r['score'])} | {STATUS_LABEL[r['status']]}{note} |")
-    L += ["", "★ = recommended to test. Open = premium ≥ threshold, low saturation, within your time."]
+        L.append(f"| {i} | {name}{star} | {num(r['effort'])} | {num(r['premium'])} | {sat} | "
+                 f"{r['basis'] or '-'} | {dem} | {num(r['hours'])} | {num(r['score'])} | {STATUS_LABEL[r['status']]}{note} |")
+    L += ["", "★ = recommended to test. Open = premium ≥ threshold, low saturation, within your time. "
+          "(?) = format classification uncertain. Demand - = not checked (scored as neutral)."]
     left = [r for r in res["rows"] if r["status"] == "n/a"]
     if left:
         L.append("Left out: " + "; ".join(f"{r['name']} ({r['reason']})" for r in left) + ".")
@@ -656,7 +737,7 @@ main{max-width:1100px;margin:0 auto;padding:24px 16px 64px}h1{font-size:28px;mar
 .chip{font-size:12px;line-height:1.25;background:var(--card);border-radius:6px;padding:3px 6px;border:2px solid var(--neutral);max-width:100%}
 .chip small{display:block;color:var(--muted);font-size:10.5px}
 .chip.open{border-color:var(--open);font-weight:600}.chip.stretch{border-color:var(--stretch);border-style:double;border-width:3px}
-.chip.upgrade{border-color:var(--upgrade)}.chip.crowded{border-color:var(--crowded)}
+.chip.upgrade{border-color:var(--upgrade)}.chip.weak-demand{border-color:var(--open);border-style:dashed;opacity:.8}.chip.crowded{border-color:var(--crowded)}
 .chip.unknown{border-color:var(--unknown);border-style:dotted}.chip.blocked{border-color:var(--blocked);opacity:.55;text-decoration:line-through}
 .chip.rec{box-shadow:0 0 0 2px var(--fg)}
 .legend{display:flex;flex-wrap:wrap;gap:8px;margin:12px 0;font-size:13px}.legend .chip{font-weight:400}
@@ -664,7 +745,7 @@ main{max-width:1100px;margin:0 auto;padding:24px 16px 64px}h1{font-size:28px;mar
 .tablewrap{overflow-x:auto}table{border-collapse:collapse;width:100%;font-size:13.5px;background:var(--card)}
 th,td{border-bottom:1px solid var(--line);padding:6px 8px;text-align:left;vertical-align:top}th{font-size:12px;color:var(--muted);font-weight:600}
 td.n{text-align:right;font-variant-numeric:tabular-nums}.st{font-weight:600;white-space:nowrap}
-.st.open{color:var(--open)}.st.stretch{color:var(--stretch)}.st.upgrade{color:var(--upgrade)}.st.crowded{color:var(--crowded)}.st.unknown,.st.blocked,.st.neutral{color:var(--muted)}
+.st.open{color:var(--open)}.st.stretch{color:var(--stretch)}.st.upgrade{color:var(--upgrade)}.st.weak-demand{color:var(--muted)}.st.crowded{color:var(--crowded)}.st.unknown,.st.blocked,.st.neutral{color:var(--muted)}
 .ev{color:var(--muted);font-size:12px}ol li,ul li{margin:4px 0}.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:12px}
 .card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:12px 14px}.card h3{margin:0 0 6px;font-size:15px}
 .card ul{list-style:none;padding:0;margin:0}.card li{font-size:13.5px}.card li b{color:var(--muted);font-weight:600;font-size:11px;text-transform:uppercase;letter-spacing:.04em;margin-right:4px}
@@ -691,14 +772,17 @@ def render_html(res: dict) -> str:
     b = res["bases"]
     parts.append(f"<p class=\"meta\">Saturation basis: {b['observed']} observed · {b['user']} from you · "
                  f"{b['estimated']} estimated · {b['unknown']} unknown"
-                 + (f" · sample of {esc(res['sample']['size'])} results" if res["sample"].get("size") else "") + "</p>")
+                 + (f" · sample of {esc(res['sample']['size'])} results" if res["sample"].get("size") else "")
+                 + (f" from {esc(res['sample']['channels'])} channels" if res["sample"].get("channels") is not None else "")
+                 + (f" · {round(b['coverage'] * 100)}% classified" if b.get("coverage") is not None else "")
+                 + f" · demand checked for {b['demand']}</p>")
     if res["sample"].get("evidence"):
         parts.append(f"<p class=\"meta\">Sample: {esc(res['sample']['evidence'])}</p>")
     for w in res["warnings"]:
         parts.append(f"<div class=\"note\">{esc(w)}</div>")
     # legend
     parts.append("<div class=\"legend\">")
-    for st in ("open", "stretch", "upgrade", "crowded", "neutral", "unknown", "blocked"):
+    for st in ("open", "stretch", "upgrade", "weak-demand", "crowded", "neutral", "unknown", "blocked"):
         parts.append(f"<span class=\"chip {st}\">{esc(STATUS_LABEL[st])}</span>")
     parts.append("<span class=\"chip rec\">★ Recommended</span></div>")
     parts.append("<div class=\"scale\">Chip colour = saturation of that format: "
@@ -724,6 +808,10 @@ def render_html(res: dict) -> str:
                     tip += f", {r['basis']}"
                 if r.get("platform_note"):
                     tip += f"; {r['platform_note']}"
+                if r.get("demand") is not None:
+                    tip += f"; demand {num(r['demand'])} ({r['demand_basis']})"
+                if r.get("confidence") == "low":
+                    tip += "; classification uncertain"
                 if r["evidence"]:
                     tip += f". {r['evidence'][:240]}"
                 parts.append(f"<span class=\"chip {r['status']}{' rec' if rec else ''}\" title=\"{esc(tip)}\" "
@@ -764,21 +852,190 @@ def render_html(res: dict) -> str:
         parts.append("</div>")
     # table
     parts.append("<h2>All formats</h2><div class=\"tablewrap\"><table><tr><th>Format</th><th>Effort</th><th>Premium</th>"
-                 "<th>Saturation</th><th>Basis</th><th>Hours</th><th>Score</th><th>Status</th></tr>")
+                 "<th>Saturation</th><th>Basis</th><th>Demand</th><th>Hours</th><th>Score</th><th>Status</th></tr>")
     for r in res["rows"]:
         if r["status"] == "n/a":
             continue
         rec = (r["format"], r["layout"]) in rec_keys
         ev = f"<div class=\"ev\">{esc(r['evidence'])}</div>" if r["evidence"] else ""
+        if r.get("demand_evidence"):
+            ev += f"<div class=\"ev\">Demand: {esc(r['demand_evidence'])}</div>"
+        dem = "-" if r.get("demand") is None else f"{num(r['demand'])} {r['demand_basis']}"
         parts.append(f"<tr><td>{'★ ' if rec else ''}{esc(r['name'])}{ev}</td><td class=\"n\">{esc(num(r['effort']))}</td>"
                      f"<td class=\"n\">{esc(num(r['premium']))}</td><td class=\"n\">{esc(num(r['saturation']))}</td>"
-                     f"<td>{esc(r['basis'] or '-')}</td><td class=\"n\">{esc(num(r['hours']))}</td>"
+                     f"<td>{esc(r['basis'] or '-')}</td><td>{esc(dem)}</td><td class=\"n\">{esc(num(r['hours']))}</td>"
                      f"<td class=\"n\">{esc(num(r['score']))}</td><td class=\"st {r['status']}\">{esc(STATUS_LABEL[r['status']])}</td></tr>")
     parts.append("</table></div>")
     parts.append("<p class=\"meta\" style=\"margin-top:24px\">Made with FormatMap. Effort and premium are editable starting "
-                 "ratings; saturation is only as good as the sample behind it.</p>")
+                 "ratings; saturation and demand are only as good as the evidence behind them.</p>")
     parts.append("</main></body></html>")
     return "".join(parts)
+
+
+# --------------------------------------------------------------------------- results feedback
+
+VERDICTS = ("keep", "promising", "iterate", "drop", "too-early")
+VERDICT_TEXT = {
+    "keep": "Keep: beat your baseline on retention and shares+saves in every piece",
+    "promising": "Promising: one piece beat both; make one more before deciding",
+    "iterate": "Iterate: beat the baseline on one signal; try the next premium upgrade",
+    "drop": "Drop: lost on both signals",
+    "too-early": "Too few views to judge",
+}
+
+
+def validate_results(res: dict, cat: dict) -> list:
+    errors = []
+    if not isinstance(res, dict):
+        return ["results file must be a JSON object"]
+    base = res.get("baseline")
+    if not isinstance(base, dict):
+        errors.append("'baseline' is required: your own median retention and shares+saves per 1,000 views "
+                      "over your last ~10 posts on the same platform")
+    else:
+        for k in ("retention", "engaged_per_1k"):
+            if not isinstance(base.get(k), (int, float)) or base[k] < 0:
+                errors.append(f"baseline.{k} must be a number >= 0")
+    pieces = res.get("pieces")
+    if not isinstance(pieces, list) or not pieces:
+        errors.append("'pieces' must be a non-empty list")
+        pieces = []
+    for i, p in enumerate(pieces, 1):
+        tag = f"piece {i}" + (f" ({p.get('title')})" if p.get("title") else "")
+        if p.get("format") not in cat["_formats"]:
+            errors.append(f"{tag}: unknown format {p.get('format')!r}")
+        if p.get("layout") is not None and p["layout"] not in cat["_layouts"]:
+            errors.append(f"{tag}: unknown layout {p['layout']!r}")
+        for k in ("views", "shares", "saves"):
+            if not isinstance(p.get(k), (int, float)) or p[k] < 0:
+                errors.append(f"{tag}: {k} must be a number >= 0 (from your analytics)")
+        if not isinstance(p.get("retention"), (int, float)) or not 0 <= p["retention"] <= 100:
+            errors.append(f"{tag}: retention must be a percentage 0-100")
+        if p.get("hours") is not None and (not isinstance(p["hours"], (int, float)) or p["hours"] <= 0):
+            errors.append(f"{tag}: hours must be a positive number")
+    return errors
+
+
+def analyse_results(res: dict, cat: dict) -> dict:
+    """Compare each tested format with the creator's own baseline. Pure and deterministic."""
+    errors = validate_results(res, cat)
+    if errors:
+        fail("results file has problems:\n  - " + "\n  - ".join(errors))
+    base = res["baseline"]
+    min_views = int(res.get("min_views", cat["scoring"].get("min_views_to_judge", 200)))
+    groups = {}
+    for p in res["pieces"]:
+        key = (p["format"], p.get("layout"))
+        views = p["views"]
+        engaged = p["shares"] + p["saves"]
+        per_1k = round(engaged / views * 1000, 2) if views else 0.0
+        judged = views >= min_views
+        groups.setdefault(key, []).append({
+            "title": p.get("title", ""), "views": views, "retention": p["retention"], "engaged": engaged,
+            "per_1k": per_1k, "hours": p.get("hours"), "judged": judged,
+            "beats_retention": judged and p["retention"] > base["retention"],
+            "beats_engaged": judged and per_1k > base["engaged_per_1k"],
+        })
+    out_rows = []
+    for (fid, lid), ps in groups.items():
+        judged = [x for x in ps if x["judged"]]
+        both = sum(1 for x in judged if x["beats_retention"] and x["beats_engaged"])
+        one = sum(1 for x in judged if x["beats_retention"] or x["beats_engaged"])
+        if not judged:
+            verdict = "too-early"
+        elif both == len(judged) and len(judged) >= 2:
+            verdict = "keep"
+        elif both == len(judged):
+            verdict = "promising"
+        elif one:
+            verdict = "iterate"
+        else:
+            verdict = "drop"
+        basis = judged or ps  # averages use the judged pieces when there are any
+        views = sum(x["views"] for x in basis)
+        engaged = sum(x["engaged"] for x in basis)
+        hours = [x["hours"] for x in ps if x["hours"] is not None]
+        name = cat["_formats"][fid]["name"] + (f" + {cat['_layouts'][lid]['name']}" if lid else "")
+        out_rows.append({
+            "format": fid, "layout": lid, "name": name, "pieces": len(ps), "judged": len(judged),
+            "retention": round(sum(x["retention"] for x in basis) / len(basis), 1),
+            "per_1k": round(engaged / views * 1000, 2) if views else 0.0,
+            "avg_hours": round(sum(hours) / len(hours), 2) if hours else None,
+            "engaged_per_hour": (round(sum(x["engaged"] for x in ps) / sum(hours), 2) if hours and sum(hours) else None),
+            "verdict": verdict, "pieces_detail": ps,
+        })
+    order = {v: i for i, v in enumerate(VERDICTS)}
+    out_rows.sort(key=lambda r: (order[r["verdict"]], -(r["engaged_per_hour"] or 0), r["name"]))
+    return {"baseline": base, "min_views": min_views, "formats": out_rows}
+
+
+def render_analysis_md(a: dict) -> str:
+    b = a["baseline"]
+    L = ["# Format test results", "",
+         f"Baseline: {num(b['retention'])}% retention, {num(b['engaged_per_1k'])} shares+saves per 1,000 views"
+         + (f" ({b['source']})" if b.get("source") else ""), "",
+         "| Format | Pieces | Retention | Shares+saves /1k | Hours each | Shares+saves per hour | Verdict |",
+         "|---|---|---|---|---|---|---|"]
+    for r in a["formats"]:
+        n = str(r["pieces"]) + (f" ({r['judged']} judged)" if r["judged"] < r["pieces"] else "")
+        L.append(f"| {r['name']} | {n} | {num(r['retention'])}% | {num(r['per_1k'])} | {num(r['avg_hours'])} | "
+                 f"{num(r['engaged_per_hour'])} | {VERDICT_TEXT[r['verdict']]} |")
+    L += ["", f"Pieces under {a['min_views']} views aren't judged. Raw views are not compared: a format wins on "
+          "retention and shares+saves per 1,000 views against your own baseline. Check that a winner didn't win "
+          "on its topic alone (make the next piece on a different topic)."]
+    return "\n".join(L) + "\n"
+
+
+def apply_results_to_scan(scan: dict, a: dict, date: str) -> dict:
+    """Learning step: measured hours become overrides; kept formats join current_formats."""
+    new = copy.deepcopy(scan)
+    ov = new.setdefault("overrides", {})
+    cur = new["creator"].setdefault("current_formats", [])
+    for r in a["formats"]:
+        if r["layout"] is None and r["avg_hours"]:
+            o = ov.setdefault(r["format"], {})
+            o["hours"] = r["avg_hours"]
+            o["reason"] = f"measured in your format test ({date})"
+        if r["verdict"] == "keep" and r["format"] not in cur:
+            cur.append(r["format"])
+    new["date"] = date
+    return new
+
+
+# --------------------------------------------------------------------------- compare scans
+
+def compare_scans(old: dict, new: dict, cat: dict) -> list[dict]:
+    for label, s in (("old", old), ("new", new)):
+        errs, _ = validate_scan(s, cat)
+        if errs:
+            fail(f"{label} scan has problems:\n  - " + "\n  - ".join(errs))
+    a = {(r["format"], r["layout"]): r for r in evaluate(old, cat)}
+    b = {(r["format"], r["layout"]): r for r in evaluate(new, cat)}
+    rows = []
+    for key in sorted(set(a) | set(b), key=lambda k: (k[0], k[1] or "")):
+        ra, rb = a.get(key), b.get(key)
+        sa = ra["saturation"] if ra else None
+        sb = rb["saturation"] if rb else None
+        sta = ra["status"] if ra else "absent"
+        stb = rb["status"] if rb else "absent"
+        if sa == sb and sta == stb:
+            continue
+        rows.append({"name": (rb or ra)["name"], "sat_old": sa, "sat_new": sb, "status_old": sta,
+                     "status_new": stb,
+                     "change": None if sa is None or sb is None else round(sb - sa, 2)})
+    rows.sort(key=lambda r: (-(abs(r["change"]) if r["change"] is not None else 0), r["name"]))
+    return rows
+
+
+def render_compare_md(rows: list[dict], old: dict, new: dict) -> str:
+    L = [f"# Niche changes: {new.get('niche')}", "", f"{old.get('date', '?')} → {new.get('date', '?')}", ""]
+    if not rows:
+        return "\n".join(L + ["No format changed saturation or status."]) + "\n"
+    label = lambda st: STATUS_LABEL.get(st, st)
+    L += ["| Format | Saturation | Status |", "|---|---|---|"]
+    for r in rows:
+        L.append(f"| {r['name']} | {num(r['sat_old'])} → {num(r['sat_new'])} | {label(r['status_old'])} → {label(r['status_new'])} |")
+    return "\n".join(L) + "\n"
 
 
 # --------------------------------------------------------------------------- commands
@@ -881,6 +1138,30 @@ def cmd_build(a, cat):
     out(f"wrote {d / 'formatmap.html'} and {d / 'formatmap.md'}")
 
 
+def cmd_analyse(a, cat):
+    res = load_json(Path(a.results), "results file")
+    an = analyse_results(res, cat)
+    out(render_analysis_md(an))
+    if a.out_dir:
+        d = Path(a.out_dir)
+        d.mkdir(parents=True, exist_ok=True)
+        (d / "results.md").write_text(render_analysis_md(an), encoding="utf-8")
+    if a.scan:
+        if not a.scan_out:
+            fail("--scan needs --scan-out (the original scan is never overwritten)")
+        scan = load_json(Path(a.scan), "scan file")
+        new = apply_results_to_scan(scan, an, a.date or dt.date.today().isoformat())
+        Path(a.scan_out).write_text(json.dumps(new, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+        out(f"wrote {a.scan_out}: measured hours saved as overrides, kept formats added to current_formats. "
+            "Re-scan the niche (saturation moves) and build again.")
+
+
+def cmd_compare(a, cat):
+    old = load_json(Path(a.old), "old scan")
+    new = load_json(Path(a.new), "new scan")
+    out(render_compare_md(compare_scans(old, new, cat), old, new))
+
+
 def main(argv=None):
     if hasattr(sys.stdout, "reconfigure"):
         try:
@@ -913,10 +1194,19 @@ def main(argv=None):
     s.add_argument("--out-dir", default="formatmap-out")
     s.add_argument("--top", type=int, default=4, help="formats to recommend (3-5)")
     s.add_argument("--json", action="store_true", help="also write formatmap.json")
+    s = sub.add_parser("analyse", help="compare tested formats with your own baseline")
+    s.add_argument("results")
+    s.add_argument("--out-dir")
+    s.add_argument("--scan", help="scan file to learn from the results (needs --scan-out)")
+    s.add_argument("--scan-out")
+    s.add_argument("--date", help="date for the updated scan (default today)")
+    s = sub.add_parser("compare", help="what changed between two scans of the same niche")
+    s.add_argument("old")
+    s.add_argument("new")
     a = p.parse_args(argv)
     cat = load_catalogue(a.catalogue)
     {"catalogue": cmd_catalogue, "show": cmd_show, "template": cmd_template,
-     "check": cmd_check, "build": cmd_build}[a.cmd](a, cat)
+     "check": cmd_check, "build": cmd_build, "analyse": cmd_analyse, "compare": cmd_compare}[a.cmd](a, cat)
 
 
 if __name__ == "__main__":
